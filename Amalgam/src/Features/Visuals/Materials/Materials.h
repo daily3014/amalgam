@@ -10,6 +10,7 @@ struct Material_t
 	std::string m_sName;
 	std::string m_sVMT;
 	bool m_bLocked = false;
+	bool m_bStored = false;
 
 	IMaterialVar* m_phongtint = nullptr;
 	IMaterialVar* m_envmaptint = nullptr;

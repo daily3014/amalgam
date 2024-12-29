@@ -78,6 +78,47 @@ TraceType_t CTraceFilterProjectile::GetTraceType() const
 	return TRACE_EVERYTHING;
 }
 
+bool CTraceFilterProjectileEnemy::ShouldHitEntity(IHandleEntity* pServerEntity, int nContentsMask)
+{
+	if (!pServerEntity || pServerEntity == pSkip)
+		return false;
+
+	auto pEntity = reinterpret_cast<CBaseEntity*>(pServerEntity);
+
+	switch (pEntity->GetClassID())
+	{
+	case ETFClassID::CBaseEntity:
+	case ETFClassID::CBaseDoor:
+	case ETFClassID::CDynamicProp:
+	case ETFClassID::CPhysicsProp:
+	case ETFClassID::CObjectCartDispenser:
+	case ETFClassID::CFuncTrackTrain:
+	case ETFClassID::CFuncConveyor:
+	case ETFClassID::CObjectSentrygun:
+	case ETFClassID::CObjectDispenser:
+	case ETFClassID::CObjectTeleporter:
+	case ETFClassID::CTFPlayer: return true;
+	}
+
+	return false;
+}
+TraceType_t CTraceFilterProjectileEnemy::GetTraceType() const
+{
+	return TRACE_EVERYTHING;
+}
+
+bool CTraceFilterAll::ShouldHitEntity(IHandleEntity* pServerEntity, int nContentsMask)
+{
+	if (!pServerEntity || pServerEntity == pSkip)
+		return false;
+
+	return true;
+}
+TraceType_t CTraceFilterAll::GetTraceType() const
+{
+	return TRACE_EVERYTHING;
+}
+
 bool CTraceFilterWorldAndPropsOnly::ShouldHitEntity(IHandleEntity* pServerEntity, int nContentsMask)
 {
 	if (!pServerEntity || pServerEntity == pSkip)

@@ -1,4 +1,6 @@
 #include "AutoDetonate.h"
+#include "../../Visuals/Notifications/Notifications.h"
+#include "../../Simulation/ProjectileSimulation/ProjectileSimulation.h"
 
 static inline Vec3 PredictOrigin(Vec3& vOrigin, Vec3 vVelocity, float flLatency, bool bTrace = true, Vec3 vMins = {}, Vec3 vMaxs = {}, unsigned int nMask = MASK_SOLID)
 {
@@ -40,8 +42,10 @@ void CAutoDetonate::RestorePlayers()
 	}
 }
 
-static inline bool CheckEntities(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd, CBaseEntity* pProjectile, float flRadius, Vec3 vOrigin)
+static inline bool CheckEntities(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd, CBaseEntity* pProjectile, float flRadius, Vec3 vOrigin, CBaseEntity*& pTargetEntity)
 {
+	// modify to return the entity we found
+
 	CBaseEntity* pEntity;
 	for (CEntitySphereQuery sphere(vOrigin, flRadius);
 		(pEntity = sphere.GetCurrentEntity()) != nullptr;
@@ -82,11 +86,32 @@ static inline bool CheckEntities(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUse
 				G::PSilentAngles = true;
 			}
 
+			pTargetEntity = pEntity;
+
 			return true;
 		}
 	}
 
 	return false;
+}
+
+static float CalculateExplosionRadius(bool bTouched = false, float flCreationTime = 0, float flNow = 0, float flScale = 0.95)
+{
+	float flRadius = flScale;
+	flRadius *= 146.f;
+
+	if (!bTouched)
+	{
+		static auto tf_grenadelauncher_livetime = U::ConVars.FindVar("tf_grenadelauncher_livetime");
+		static auto tf_sticky_radius_ramp_time = U::ConVars.FindVar("tf_sticky_radius_ramp_time");
+		static auto tf_sticky_airdet_radius = U::ConVars.FindVar("tf_sticky_airdet_radius");
+		float flLiveTime = tf_grenadelauncher_livetime ? tf_grenadelauncher_livetime->GetFloat() : 0.8f;
+		float flRampTime = tf_sticky_radius_ramp_time ? tf_sticky_radius_ramp_time->GetFloat() : 2.f;
+		float flAirdetRadius = tf_sticky_airdet_radius ? tf_sticky_airdet_radius->GetFloat() : 0.85f;
+		flRadius *= Math::RemapValClamped(flNow - flCreationTime, flLiveTime, flLiveTime + flRampTime, flAirdetRadius, 1.f);
+	}
+
+	return flRadius;
 }
 
 bool CAutoDetonate::CheckDetonation(CTFPlayer* pLocal, EGroupType entityGroup, float flRadiusScale, CUserCmd* pCmd)
@@ -134,12 +159,105 @@ bool CAutoDetonate::CheckDetonation(CTFPlayer* pLocal, EGroupType entityGroup, f
 		else
 			flRadius *= 110.f;
 		flRadius = SDK::AttribHookValue(flRadius, "mult_explosion_radius", pWeapon);
+
 		Vec3 vOrigin = PredictOrigin(pProjectile->m_vecOrigin(), pProjectile->GetAbsVelocity(), flLatency);
 
+		Vec3 vFutureOrigin;
+		float flTimePredicted = -1;
+
+		ProjectileInfo projInfo = {
+			ProjectileType_t::TF_PROJECTILE_PIPEBOMB_REMOTE,
+			pProjectile->m_vecOrigin(),
+			Math::CalcAngle(pProjectile->m_vecOrigin(), pProjectile->m_vecOrigin() + pProjectile->GetAbsVelocity()), // probably incorrect
+			{6.f, 6.f, 6.f},
+			pProjectile->GetAbsVelocity().Length(),
+			1.f,
+			false,
+			Vars::Aimbot::Projectile::AutoDetLookAheadTime.Value, 
+		};
+
+		if (Vars::Aimbot::Projectile::AutoDetPrioritizePlayers.Value && pProjectile->GetAbsVelocity().Length() > 0.1f && F::ProjSim.Initialize(projInfo))
+		{
+			const int ticks = TIME_TO_TICKS(projInfo.m_flLifetime);
+			for (int n = 1; n <= ticks; n++)
+			{
+				Vec3 Old = F::ProjSim.GetOrigin();
+				F::ProjSim.RunTick(projInfo);
+				Vec3 New = F::ProjSim.GetOrigin();
+
+				CGameTrace trace = {};
+				CTraceFilterProjectile filter = {}; filter.pSkip = pLocal;
+				SDK::Trace(Old, New, MASK_SOLID, &filter, &trace);
+				if (trace.DidHit())
+				{
+					flTimePredicted = TICKS_TO_TIME(n);
+					break;
+				}
+			}
+
+			if (flTimePredicted == -1)
+				flTimePredicted = projInfo.m_flLifetime;
+
+			vFutureOrigin = F::ProjSim.GetOrigin();
+		}
+		else
+		{
+			vFutureOrigin = vOrigin;
+			flTimePredicted = 0;
+		}
+
+
 		PredictPlayers(pLocal, flLatency);
-		bool bCheck = CheckEntities(pLocal, pWeapon, nullptr, pProjectile, flRadius, vOrigin);
+		
+		CBaseEntity* pTargetEntity;
+		bool bCheck = CheckEntities(pLocal, pWeapon, nullptr, pProjectile, flRadius, vOrigin, pTargetEntity);
+
+		if (Vars::Aimbot::Projectile::AutoDetPrioritizePlayers.Value && entityGroup == EGroupType::MISC_LOCAL_STICKIES && bCheck && pTargetEntity != nullptr)
+		{
+			const bool bIsSticky = pTargetEntity->GetClassID() == ETFClassID::CTFGrenadePipebombProjectile
+				&& pTargetEntity->As<CTFGrenadePipebombProjectile>()->HasStickyEffects()
+				&& (pWeapon->m_iItemDefinitionIndex() == Demoman_s_TheQuickiebombLauncher || pWeapon->m_iItemDefinitionIndex() == Demoman_s_TheScottishResistance);
+
+			if (bIsSticky)
+			{
+				auto pPipebomb = pProjectile->As<CTFGrenadePipebombProjectile>();
+
+				const bool bIsOurCritical = pPipebomb->m_bCritical();
+				const bool bIsCritical = pTargetEntity->As<CTFGrenadePipebombProjectile>()->m_bCritical();
+
+				const bool bIsLow = pLocal->m_iHealth() < pLocal->GetMaxHealth() * (Vars::Aimbot::Projectile::AutoDetLowHealthPercentage.Value / 100);
+
+				if (!bIsCritical && (!bIsLow || bIsOurCritical))
+				{
+					if (!(bIsLow && Vars::Aimbot::Projectile::AutoDetSafeMode.Value))
+					{
+						for (auto pPlayerEntity : H::Entities.GetGroup(EGroupType::PLAYERS_ENEMIES))
+						{
+							auto pPlayer = pPlayerEntity->As<CTFPlayer>();
+							if (pPlayer == pLocal || pPlayer->IsDormant() || !pPlayer->IsAlive() || pPlayer->IsAGhost())
+								continue;
+
+							Vec3 vPlayerOrigin = pPlayer->GetAbsOrigin() + pPlayer->GetViewOffset() / 2;
+
+							float flFutureRadius = CalculateExplosionRadius(
+								pPipebomb->m_bTouched(),
+								pPipebomb->m_flCreationTime(),
+								I::GlobalVars->curtime + flTimePredicted
+							);
+							if (vPlayerOrigin.DistTo(vFutureOrigin) > (Vars::Aimbot::Projectile::AutoDetPredictRadius.Value ? flFutureRadius : flRadius))
+								continue;
+
+							bCheck = vPlayerOrigin.DistTo(vOrigin) <= flRadius;
+							break;
+						}
+					}
+				}
+			}
+		}
+
 		RestorePlayers();
-		if (bCheck && CheckEntities(pLocal, pWeapon, pCmd, pProjectile, flRadius, pProjectile->m_vecOrigin()))
+
+		if (bCheck && CheckEntities(pLocal, pWeapon, pCmd, pProjectile, flRadius, pProjectile->m_vecOrigin(), pTargetEntity))
 			return true;
 	}
 

@@ -11,7 +11,10 @@
 #include "Materials/Materials.h"
 #include "../Spectate/Spectate.h"
 #include "../TickHandler/TickHandler.h"
+#include "../../SDK/Helpers/Draw/Draw.h"
+#include "../../SDK/SDK.h"
 
+MAKE_SIGNATURE(RenderSphere, "engine.dll", "48 8B C4 44 89 48 ? F3 0F 11 48", 0x0)
 MAKE_SIGNATURE(RenderLine, "engine.dll", "48 89 5C 24 ? 48 89 74 24 ? 44 89 44 24", 0x0);
 MAKE_SIGNATURE(RenderBox, "engine.dll", "48 83 EC ? 8B 84 24 ? ? ? ? 4D 8B D8", 0x0);
 MAKE_SIGNATURE(RenderWireframeBox, "engine.dll", "48 89 5C 24 ? 48 89 74 24 ? 48 89 7C 24 ? 55 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 49 8B F9", 0x0);
@@ -37,48 +40,38 @@ void CVisuals::DrawFOV(CTFPlayer* pLocal)
 
 void CVisuals::DrawTicks(CTFPlayer* pLocal)
 {
-	// Check if the Ticks indicator is enabled in the menu
 	if (!(Vars::Menu::Indicators.Value & Vars::Menu::IndicatorsEnum::Ticks))
 		return;
 
-	// Check if the player is alive
 	if (!pLocal->IsAlive())
 		return;
 
-	// Get the position and font for drawing
 	const DragBox_t dtPos = Vars::Menu::TicksDisplay.Value;
 	const auto& fFont = H::Fonts.GetFont(FONT_INDICATORS);
 
-	// Calculate the ticks and progress ratio using new logic
 	int iChoke = std::max(I::ClientState->chokedcommands - (F::AntiAim.YawOn() ? F::AntiAim.AntiAimTicks() : 0), 0);
 	int iTicks = std::clamp(F::Ticks.m_iShiftedTicks + iChoke, 0, F::Ticks.m_iMaxShift);
 	float flRatio = float(iTicks) / F::Ticks.m_iMaxShift;
 
-	// Dimensions for the progress bar
-	int iSizeX = H::Draw.Scale(100, Scale_Round);  // Width
-	int iSizeY = H::Draw.Scale(13, Scale_Round);   // Height
-	int iPosX = dtPos.x - iSizeX / 2;              // Centered X position
-	int iPosY = dtPos.y + fFont.m_nTall + H::Draw.Scale(4); // Adjusted Y position
+	int iSizeX = H::Draw.Scale(100, Scale_Round);
+	int iSizeY = H::Draw.Scale(13, Scale_Round);
+	int iPosX = dtPos.x - iSizeX / 2;
+	int iPosY = dtPos.y + fFont.m_nTall + H::Draw.Scale(4);
 
-	// Rounded corner radius
 	int cornerRadius = H::Draw.Scale(5, Scale_Round);
 
-	// Draw tick count text
 	H::Draw.String(fFont, dtPos.x, dtPos.y + 2,
 		Vars::Menu::Theme::Active.Value, ALIGN_TOP,
 		std::format("Ticks {} / {}", iTicks, F::Ticks.m_iMaxShift).c_str());
 
-	// Display "Not Ready" if waiting for shift
 	if (F::Ticks.m_iWait)
 	{
 		H::Draw.String(fFont, dtPos.x, dtPos.y + fFont.m_nTall + H::Draw.Scale(18, Scale_Round),
 			Vars::Menu::Theme::Active.Value, ALIGN_TOP, "Not Ready");
 	}
 
-	// Draw the background of the progress bar
 	H::Draw.FillRoundRect(iPosX, iPosY, iSizeX, iSizeY, cornerRadius, Vars::Menu::Theme::Background.Value);
 
-	// Draw the progress bar based on ratio
 	if (flRatio > 0.0f)
 	{
 		int progressSizeX = iSizeX - H::Draw.Scale(4, Scale_Round);
@@ -86,7 +79,8 @@ void CVisuals::DrawTicks(CTFPlayer* pLocal)
 		int progressPosX = iPosX + H::Draw.Scale(2, Scale_Round);
 		int progressPosY = iPosY + H::Draw.Scale(2, Scale_Round);
 
-		H::Draw.FillRoundRect(progressPosX, progressPosY, progressSizeX * flRatio, progressSizeY, cornerRadius, Vars::Menu::Theme::Accent.Value);
+		// clamp it because 1/24 looks ugly (FillRoundRect is shit)
+		H::Draw.FillRoundRect(progressPosX, progressPosY, progressSizeX * std::max(flRatio, (float)2 / 24), progressSizeY, cornerRadius, Vars::Menu::Theme::Accent.Value);
 	}
 }
 
@@ -265,7 +259,7 @@ void CVisuals::ProjectileTrace(CTFPlayer* pPlayer, CTFWeaponBase* pWeapon, const
 
 			auto vAngles = Math::CalcAngle(trace.startpos, trace.endpos);
 			Vec3 vForward; Math::AngleVectors(vAngles, &vForward);
-			SDK::Trace(trace.endpos, trace.endpos - vForward * 500.f, MASK_SOLID, &filter, &cameraTrace);
+			SDK::Trace(trace.endpos, trace.endpos - vForward * Vars::Visuals::Simulation::ProjectileCameraDistance.Value, MASK_SOLID, &filter, &cameraTrace);
 
 			F::CameraWindow.m_bShouldDraw = true;
 			F::CameraWindow.m_vCameraOrigin = cameraTrace.endpos;
@@ -290,14 +284,6 @@ void CVisuals::ProjectileTrace(CTFPlayer* pPlayer, CTFWeaponBase* pWeapon, const
 				if (Vars::Colors::TrajectoryPathClipped.Value.a)
 					RenderBox(trace.endpos, vSize * -1, vSize, vAngles, Vars::Colors::TrajectoryPathClipped.Value, { 0, 0, 0, 0 }, true);
 			}
-
-			if (!vPoints.empty())
-			{
-				if (Vars::Colors::SplashRadius.Value.a)
-					DrawPath(vPoints, Vars::Colors::SplashRadius.Value, Vars::Visuals::Simulation::StyleEnum::Line);
-				if (Vars::Colors::SplashRadiusClipped.Value.a)
-					DrawPath(vPoints, Vars::Colors::SplashRadiusClipped.Value, Vars::Visuals::Simulation::StyleEnum::Line, true);
-			}
 		}
 	}
 	else if (Vars::Visuals::Simulation::ShotPath.Value)
@@ -321,21 +307,79 @@ void CVisuals::ProjectileTrace(CTFPlayer* pPlayer, CTFWeaponBase* pWeapon, const
 			if (Vars::Colors::ShotPathClipped.Value.a)
 				G::BoxStorage.push_back({ trace.endpos, vSize * -1, vSize, vAngles, I::GlobalVars->curtime + TICKS_TO_TIME(projInfo.m_vPath.size()) + F::Backtrack.GetReal(), Vars::Colors::ShotPathClipped.Value, { 0, 0, 0, 0 }, true });
 		}
+	}
+}
 
-		if (!vPoints.empty())
+static void SimulateRocket(CTFPlayer* pLocal, CBaseEntity* pProjectile, float flTraceLength, Vec3& vOut)
+{
+	Vec3 vPlayerOrigin = pLocal->GetAbsOrigin() + pLocal->GetViewOffset() / 2;
+	auto Trace = [](CBaseEntity* pEntity, int iLength, Vec3& vOut) -> float
 		{
-			if (Vars::Colors::SplashRadius.Value.a)
-				G::PathStorage.push_back({ vPoints, I::GlobalVars->curtime + TICKS_TO_TIME(projInfo.m_vPath.size()) + F::Backtrack.GetReal(), Vars::Colors::SplashRadius.Value, Vars::Visuals::Simulation::StyleEnum::Line });
-			if (Vars::Colors::SplashRadiusClipped.Value.a)
-				G::PathStorage.push_back({ vPoints, I::GlobalVars->curtime + TICKS_TO_TIME(projInfo.m_vPath.size()) + F::Backtrack.GetReal(), Vars::Colors::SplashRadiusClipped.Value, Vars::Visuals::Simulation::StyleEnum::Line, true });
+			CGameTrace trace = {}; CTraceFilterProjectileEnemy filter = {};
+
+			Vec3 vOrigin = pEntity->m_vecOrigin();
+			QAngle vAngle = Math::CalcAngle(vOrigin, vOrigin + pEntity->As<CTFBaseRocket>()->m_vInitialVelocity());
+			Vec3 vForward; Math::AngleVectors(vAngle, &vForward);
+
+			SDK::Trace(vOrigin, vOrigin + vForward * iLength, MASK_SHOT, &filter, &trace);
+			vOut = trace.endpos;
+
+			return trace.fraction;
+		};
+
+	float flDistanceToLocal = (pProjectile->GetAbsOrigin() - vPlayerOrigin).Length2D();
+	Vec3 vEndPos;
+	float flFraction = Trace(pProjectile, flDistanceToLocal, vEndPos);
+
+	if (flFraction == 1.f)
+	{
+		Vec3 vClosestPoint = {}; reinterpret_cast<CCollisionProperty*>(pLocal->GetCollideable())->CalcNearestPoint(vEndPos, &vClosestPoint);
+
+		// poopy way of tracing against our character cuz it just ignores it lol good enough tho
+		Vec3 vMins = pLocal->m_vecMins();
+		Vec3 vMaxs = pLocal->m_vecMaxs();
+
+		// add two hu for leniency
+		Vec3 vScaledMins = pLocal->GetAbsOrigin() + Vec3{ (vMins.x / 2) + 2.f, (vMins.y / 2) + 2.f, vMins.z };
+		Vec3 vScaledMaxs = pLocal->GetAbsOrigin() + Vec3{ (vMaxs.x / 2) + 2.f, (vMaxs.y / 2) + 2.f, vMaxs.z };
+
+		bool bInHull = (vClosestPoint.x >= vScaledMins.x && vClosestPoint.x <= vScaledMaxs.x) &&
+			(vClosestPoint.y >= vScaledMins.y && vClosestPoint.y <= vScaledMaxs.y) &&
+			(vClosestPoint.z >= vScaledMins.z && vClosestPoint.z <= vScaledMaxs.z);
+
+		if (vClosestPoint.DistTo(vEndPos) <= 20.f && bInHull)
+			vOut = vEndPos;
+		else
+			Trace(pProjectile, flTraceLength - flDistanceToLocal, vOut);
+	}
+	else
+		vOut = vEndPos;
+}
+
+static void DrawOutlinedLine(const Vec3& vStart, const Vec3& vEnd, int iThickness, Color_t cLine, Color_t cOutline = { 0, 0, 0, 200 })
+{
+	Vec3 vScreenStart, vScreenEnd;
+	if (SDK::W2S(vStart, vScreenStart) && SDK::W2S(vEnd, vScreenEnd))
+	{
+		H::Draw.Line(vScreenStart.x + iThickness, vScreenStart.y, vScreenEnd.x + iThickness, vScreenEnd.y, cOutline);
+		H::Draw.Line(vScreenStart.x - iThickness, vScreenStart.y, vScreenEnd.x - iThickness, vScreenEnd.y, cOutline);
+		H::Draw.Line(vScreenStart.x, vScreenStart.y + iThickness, vScreenEnd.x, vScreenEnd.y + iThickness, cOutline);
+		H::Draw.Line(vScreenStart.x, vScreenStart.y - iThickness, vScreenEnd.x, vScreenEnd.y - iThickness, cOutline);
+
+		for (int i = 0; i < iThickness; i++)
+		{
+			H::Draw.Line(vScreenStart.x + i, vScreenStart.y + i, vScreenEnd.x + i, vScreenEnd.y + i, cLine);
+			H::Draw.Line(vScreenStart.x - i, vScreenStart.y - i, vScreenEnd.x - i, vScreenEnd.y - i, cLine);
 		}
 	}
 }
 
-void CVisuals::SplashRadius(CTFPlayer* pLocal)
+void CVisuals::SplashRadius(CTFPlayer* pLocal, bool inPostDraw)
 {
 	if (!Vars::Visuals::Simulation::SplashRadius.Value)
 		return;
+
+	int iOffset = 0;
 
 	for (auto pEntity : H::Entities.GetGroup(EGroupType::WORLD_PROJECTILES))
 	{
@@ -351,8 +395,8 @@ void CVisuals::SplashRadius(CTFPlayer* pLocal)
 		case ETFClassID::CTFGrenadePipebombProjectile:
 			bShouldDraw = Vars::Visuals::Simulation::SplashRadius.Value & (pEntity->As<CTFGrenadePipebombProjectile>()->HasStickyEffects() ? Vars::Visuals::Simulation::SplashRadiusEnum::Stickies : Vars::Visuals::Simulation::SplashRadiusEnum::Pipes);
 			break;
-		case ETFClassID::CTFBaseRocket:
 		case ETFClassID::CTFProjectile_Rocket:
+		case ETFClassID::CTFBaseRocket:
 		case ETFClassID::CTFProjectile_SentryRocket:
 		case ETFClassID::CTFProjectile_EnergyBall:
 			bShouldDraw = Vars::Visuals::Simulation::SplashRadius.Value & Vars::Visuals::Simulation::SplashRadiusEnum::Rockets;
@@ -364,6 +408,7 @@ void CVisuals::SplashRadius(CTFPlayer* pLocal)
 				bShouldDraw = pWeapon && pWeapon->m_iItemDefinitionIndex() == ETFWeapons::Pyro_s_TheScorchShot;
 			}
 		}
+
 		if (!bShouldDraw)
 			continue;
 
@@ -426,11 +471,83 @@ void CVisuals::SplashRadius(CTFPlayer* pLocal)
 			}
 		}
 
-		auto vPoints = SplashTrace(pEntity->GetAbsOrigin(), flRadius, { 0, 0, 1 }, Vars::Visuals::Simulation::SplashRadius.Value & Vars::Visuals::Simulation::SplashRadiusEnum::Trace);
-		if (Vars::Colors::SplashRadius.Value.a)
-			DrawPath(vPoints, Vars::Colors::SplashRadius.Value, Vars::Visuals::Simulation::StyleEnum::Line);
-		if (Vars::Colors::SplashRadiusClipped.Value.a)
-			DrawPath(vPoints, Vars::Colors::SplashRadiusClipped.Value, Vars::Visuals::Simulation::StyleEnum::Line, true);
+
+		if (inPostDraw && pWeapon)
+		{
+			Vec3 vEndPosition{ 0, 0, -1000.f };
+
+			switch (pWeapon->GetWeaponID())
+			{
+			case TF_WEAPON_ROCKETLAUNCHER:
+			case TF_WEAPON_ROCKETLAUNCHER_DIRECTHIT:
+			case TF_WEAPON_PARTICLE_CANNON:
+				SimulateRocket(pLocal, pEntity, 4096.f, vEndPosition);
+				break;
+			default:
+				vEndPosition = pEntity->GetAbsOrigin();
+			}
+			
+			Color_t Color = pEntity->m_iTeamNum() == pLocal->m_iTeamNum() ? Vars::Colors::SplashRadiusTeam.Value : Vars::Colors::SplashRadiusEnemy.Value;
+			if (Color.a)
+				RenderSphere(vEndPosition, flRadius, 50, 50, Color, true);
+		}
+
+
+		if (inPostDraw) 
+			continue;
+
+		// i should move this in a different function later
+		if (!pLocal->IsAlive() || pOwner == pLocal || pOwner->m_iTeamNum() == pLocal->m_iTeamNum() || pEntity->GetClassID() != ETFClassID::CTFBaseRocket)
+			continue;
+			
+		Vec3 vPlayerOrigin = pLocal->GetAbsOrigin() + pLocal->GetViewOffset() / 2;
+		bool bIsClose = vPlayerOrigin.DistTo(pEntity->GetAbsOrigin()) <= 750.f;
+
+		Vec3 vEndPosition;
+
+		SimulateRocket(pLocal, pEntity, 4096.f, vEndPosition);
+		Vec3 vClosestPoint; reinterpret_cast<CCollisionProperty*>(pLocal->GetCollideable())->CalcNearestPoint(vEndPosition, &vClosestPoint);
+		
+		bool bInSplashRadius = vClosestPoint.DistTo(vEndPosition) <= flRadius;
+		bool bSafeFromExplosion = true;
+
+		CGameTrace trace = {}; {
+			CTraceFilterProjectileEnemy filter = {}; filter.pSkip = pLocal;
+			SDK::Trace(vEndPosition, vClosestPoint, MASK_SHOT, &filter, &trace);
+		}
+
+		if (trace.m_pEnt)
+		{
+			switch (trace.m_pEnt->GetClassID())
+			{
+			case ETFClassID::CTFPlayer:
+				static CTFPlayer* pPlayer = trace.m_pEnt->As<CTFPlayer>();
+				if (pPlayer->IsPlayer() && pPlayer->m_iTeamNum() != pOwner->m_iTeamNum())
+					bSafeFromExplosion = false;
+				break;
+			case ETFClassID::CObjectSentrygun:
+			case ETFClassID::CObjectDispenser:
+			case ETFClassID::CObjectTeleporter:
+				static CBaseEntity* pBuilding = trace.m_pEnt;
+				if (pBuilding->m_iTeamNum() == pLocal->m_iTeamNum())
+					bSafeFromExplosion = false;
+				break;
+			}
+		}
+		else
+			bSafeFromExplosion = false;
+
+		if (!bIsClose)
+			return;
+
+		Color_t cDrawColor = (bInSplashRadius && !bSafeFromExplosion) ? Vars::Colors::IndicatorBad.Value : (bSafeFromExplosion ? Vars::Colors::IndicatorMid.Value : Vars::Colors::IndicatorGood.Value);
+		DrawOutlinedLine(pEntity->GetAbsOrigin(), vPlayerOrigin, Vars::Visuals::Simulation::LineThickness.Value, cDrawColor, Vars::Visuals::Simulation::OutlineColor.Value);
+
+		Vec3 vEndPositionScreen; if (SDK::W2S(vEndPosition, vEndPositionScreen))
+			H::Draw.FillRectOutline(vEndPositionScreen.x - 6, vEndPositionScreen.y - 6, 10, 10, { 255, 0, 0, 255 }, { 0, 0, 0, 180 });
+
+		Vec3 vRocketScreen; if (SDK::W2S(pEntity->GetAbsOrigin(), vRocketScreen))
+			H::Draw.FillRectOutline(vRocketScreen.x - 3, vRocketScreen.y - 3, 5, 5, cDrawColor, { 0, 0, 0, 180 });
 	}
 }
 
@@ -703,7 +820,35 @@ void CVisuals::RenderBox(const Vec3& vPos, const Vec3& vMins, const Vec3& vMaxs,
 		S::RenderWireframeBox.Call<void>(std::ref(vPos), std::ref(vOrientation), std::ref(vMins), std::ref(vMaxs), cEdge, bZBuffer);
 }
 
+void CVisuals::SetupMaterials()
+{
+	KeyValues* pVMTKeyValues = new KeyValues("unlitgeneric");
+	pVMTKeyValues->SetInt("$vertexcolor", 1);
+	pVMTKeyValues->SetInt("$vertexalpha", 1);
+	m_pVertexColor = F::Materials.Create("__utilVertexColor_Amalgam", pVMTKeyValues);
 
+	pVMTKeyValues = new KeyValues("unlitgeneric");
+	pVMTKeyValues->SetInt("$vertexcolor", 1);
+	pVMTKeyValues->SetInt("$vertexalpha", 1);
+	pVMTKeyValues->SetInt("$ignorez", 1);
+	m_pVertexColorIgnoreZ = F::Materials.Create("__utilVertexColorIgnoreZ_Amalgam", pVMTKeyValues);
+}
+
+void CVisuals::RenderSphere(const Vec3& vPos, float flRadius, int nTheta, int nPhi, Color_t c, bool bZBuffer)
+{
+	if (!m_pVertexColor || !m_pVertexColorIgnoreZ)
+		SetupMaterials();
+	
+	IMaterial* pMaterial = bZBuffer ? m_pVertexColor : m_pVertexColorIgnoreZ;
+
+	if (pMaterial->IsErrorMaterial())
+	{
+		SDK::Output("couldnt find material for RenderSphere");
+		return;
+	}
+
+	S::RenderSphere.Call<void>(std::ref(vPos), flRadius, nTheta, nPhi, c, pMaterial);
+}
 
 void CVisuals::FOV(CTFPlayer* pLocal, CViewSetup* pView)
 {

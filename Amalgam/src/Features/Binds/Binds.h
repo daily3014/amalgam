@@ -30,6 +30,9 @@ public:
 	void AddBind(int iBind, Bind_t tCond);
 	void RemoveBind(int iBind, bool bForce = true);
 
+	template <typename T>
+	std::vector<Bind_t*> GetBindForCVar(const ConfigVar<T> &var);
+
 	std::vector<Bind_t> vBinds = {};
 };
 

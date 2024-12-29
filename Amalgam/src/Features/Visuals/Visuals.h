@@ -20,8 +20,11 @@ struct PickupData
 class CVisuals
 {
 private:
+	IMaterial* m_pVertexColor;
+	IMaterial* m_pVertexColorIgnoreZ;
 	int m_nHudZoom = 0;
 	std::vector<Sightline_t> m_vSightLines;
+	std::unordered_map<int, Vec3> m_vProjInfos;
 	std::vector<PickupData> m_vPickups;
 
 public:
@@ -29,7 +32,7 @@ public:
 	void DrawTicks(CTFPlayer* pLocal);
 	void DrawPing(CTFPlayer* pLocal);
 	void ProjectileTrace(CTFPlayer* pPlayer, CTFWeaponBase* pWeapon, const bool bQuick = true);
-	void SplashRadius(CTFPlayer* pLocal);
+	void SplashRadius(CTFPlayer* pLocal, bool inPostDraw);
 	void DrawAntiAim(CTFPlayer* pLocal);
 	void DrawDebugInfo(CTFPlayer* pLocal);
 
@@ -44,6 +47,10 @@ public:
 	void DrawServerHitboxes(CTFPlayer* pLocal);
 	void RenderLine(const Vec3& vStart, const Vec3& vEnd, Color_t cLine, bool bZBuffer = false);
 	void RenderBox(const Vec3& vPos, const Vec3& vMins, const Vec3& vMaxs, const Vec3& vOrientation, Color_t cEdge, Color_t cFace, bool bZBuffer = false);
+
+	void SetupMaterials();
+
+	void RenderSphere(const Vec3& vPos, float flRadius, int nTheta, int nPhi, Color_t c, bool bZBuffer);
 
 	void FOV(CTFPlayer* pLocal, CViewSetup* pView);
 	void ThirdPerson(CTFPlayer* pLocal, CViewSetup* pView);

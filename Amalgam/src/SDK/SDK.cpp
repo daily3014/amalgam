@@ -20,11 +20,11 @@ BOOL CALLBACK TeamFortressWindow(HWND hwnd, LPARAM lParam)
 	return TRUE;
 }
 
-
-
-
 void SDK::Output(const char* cFunction, const char* cLog, Color_t cColor, bool bConsole, bool bChat, bool bToast, bool bDebug)
 {
+	if (!I::CVar || I::CVar == nullptr)
+		return;
+	
 	if (cLog)
 	{
 		if (bConsole)
@@ -524,6 +524,7 @@ int SDK::IsAttacking(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, const CUserCmd* 
 		return false;
 	case TF_WEAPON_FLAMETHROWER:
 	case TF_WEAPON_FLAME_BALL:
+	case TF_WEAPON_MECHANICAL_ARM:
 		if (G::CanSecondaryAttack && pCmd->buttons & IN_ATTACK2)
 			return 1;
 		break;

@@ -28,6 +28,8 @@ private:
 	bool IsCritCommand(int iSlot, int iIndex, float flMultCritChance, const i32 command_number, const bool bCrit = true, const bool bSafe = true);
 	u32 DecryptOrEncryptSeed(int iSlot, int iIndex, const u32 uSeed);
 
+	void Resync(CTFPlayer* pLocal);
+
 	void GetTotalCrits(CTFPlayer* pLocal, CTFWeaponBase* pWeapon);
 	void CanFireCritical(CTFPlayer* pLocal, CTFWeaponBase* pWeapon);
 	bool WeaponCanCrit(CTFWeaponBase* pWeapon, bool bWeaponOnly = false);
@@ -35,6 +37,8 @@ private:
 	void ResetWeapons(CTFPlayer* pLocal);
 	void Reset();
 
+	int m_iBoostedDamage = 0.f;
+	int m_iMeleeDamage = 0.f;
 	int m_iCritDamage = 0.f;
 	int m_iAllDamage = 0.f;
 	std::unordered_map<int, int> m_mHealthStorage = {};

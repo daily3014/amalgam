@@ -215,7 +215,18 @@ void CMenu::MenuAimbot()
 					PushTransparent(!FGet(Vars::Aimbot::Projectile::AutoRelease));
 						FSlider("Auto release", Vars::Aimbot::Projectile::AutoRelease, 0.f, 100.f, 5.f, "%g%%", FSlider_Clamp | FSlider_Precision);
 					PopTransparent();
+					FDropdown("Rocket splash mode", Vars::Aimbot::Projectile::RocketSplashMode, { "Regular", "Special Light", "Special Heavy" }, {}, FDropdown_Left, 0);
+					FSlider("Splash Points", Vars::Aimbot::Projectile::SplashPoints, 1, 400, 5, "%i", FSlider_Right | FSlider_Min);
 				} EndSection();
+				if (Section("Auto Detonate"))
+				{
+					FToggle("Prioritize players", Vars::Aimbot::Projectile::AutoDetPrioritizePlayers, FToggle_Left);
+					FToggle("Safe mode", Vars::Aimbot::Projectile::AutoDetSafeMode, FToggle_Right);
+					FToggle("Predict explosion radius", Vars::Aimbot::Projectile::AutoDetPredictRadius, FToggle_Left);
+					FSlider("Low health percentage", Vars::Aimbot::Projectile::AutoDetLowHealthPercentage, 0.f, 100.f, 5.f, "%g%%", FSlider_Clamp | FSlider_Precision);
+					FSlider("Max simulation time## prioritize plrs", Vars::Aimbot::Projectile::AutoDetLookAheadTime, 0.1f, 2.5f, 0.25f, "%gs", FSlider_Min | FSlider_Precision);
+				} EndSection();
+
 				if (Vars::Debug::Info.Value)
 				{
 					if (Section("debug## projectile"))
@@ -251,16 +262,11 @@ void CMenu::MenuAimbot()
 						FSlider("huntsman clamp", Vars::Aimbot::Projectile::HuntsmanClamp, 0.f, 10.f, 0.5f, "%g", FSlider_Left | FSlider_Clamp | FSlider_Precision);
 
 						FToggle("splash grates", Vars::Aimbot::Projectile::SplashGrates, FToggle_Left);
-						bool bHovered; FDropdown("rocket splash mode", Vars::Aimbot::Projectile::RocketSplashMode, { "regular", "special light", "special heavy" }, {}, FDropdown_Right, 0, &bHovered);
-						FTooltip("special splash type for rockets, more expensive", bHovered);
-						SetCursorPosY(GetCursorPosY() - 24);
-						FSlider("splash points", Vars::Aimbot::Projectile::SplashPoints, 1, 400, 5, "%i", FSlider_Left | FSlider_Min);
 						FSlider("direct splash count", Vars::Aimbot::Projectile::SplashCountDirect, 1, 100, 1, "%i", FSlider_Left | FSlider_Min);
 						FSlider("arc splash count", Vars::Aimbot::Projectile::SplashCountArc, 1, 100, 1, "%i", FSlider_Right | FSlider_Min);
 						FSlider("splash trace interval", Vars::Aimbot::Projectile::SplashTraceInterval, 1, 10, 1, "%i", FSlider_Left);
 						FSlider("delta count", Vars::Aimbot::Projectile::DeltaCount, 1, 5, 1, "%i", FSlider_Right);
 						FToggle("strafe delta", Vars::Aimbot::Projectile::StrafeDelta);
-						FTooltip("this was a test and should probably stay off");
 						FDropdown("delta mode", Vars::Aimbot::Projectile::DeltaMode, { "average", "max" }, {}, FDropdown_Right);
 					} EndSection();
 				}
@@ -779,16 +785,21 @@ void CMenu::MenuVisuals()
 					FDropdown("Shot path", Vars::Visuals::Simulation::ShotPath, { "Off", "Line", "Separators", "Spaced", "Arrows", "Boxes" }, {}, FDropdown_Right, -20);
 					FColorPicker("Shot path", Vars::Colors::ShotPath, 0, FColorPicker_Dropdown | FColorPicker_Tooltip); FColorPicker("Shot path clipped", Vars::Colors::ShotPathClipped, 0, FColorPicker_Dropdown | FColorPicker_Tooltip);
 					FDropdown("Splash radius", Vars::Visuals::Simulation::SplashRadius, { "Simulation", "##Divider", "Priority", "Enemy", "Team", "Local", "Friends", "Party", "##Divider", "Rockets", "Stickies", "Pipes", "Scorch shot", "##Divider", "Trace" }, {}, FDropdown_Multi, -20);
-					FColorPicker("Splash radius", Vars::Colors::SplashRadius, 0, FColorPicker_Dropdown | FColorPicker_Tooltip); FColorPicker("Splash radius clipped", Vars::Colors::SplashRadiusClipped, 0, FColorPicker_Dropdown | FColorPicker_Tooltip);
+					FColorPicker("Splash radius team", Vars::Colors::SplashRadiusTeam, 0, FColorPicker_Dropdown | FColorPicker_Tooltip); FColorPicker("Splash radius enemy", Vars::Colors::SplashRadiusEnemy, 0, FColorPicker_Dropdown | FColorPicker_Tooltip);
 					FToggle("Timed", Vars::Visuals::Simulation::Timed, FToggle_Left);
 					FToggle("Box", Vars::Visuals::Simulation::Box, FToggle_Right);
 					FToggle("Swing prediction lines", Vars::Visuals::Simulation::SwingLines, FToggle_Left);
 					FToggle("Projectile camera", Vars::Visuals::Simulation::ProjectileCamera, FToggle_Right);
+					FSlider("Projectile camera distance", Vars::Visuals::Simulation::ProjectileCameraDistance, 30.f, 500.f, 20.f, "%ghu", FSlider_Left | FSlider_Precision);
 				} EndSection();
 				if (Vars::Debug::Info.Value)
 				{
 					if (Section("debug## part1"))
 					{
+						FSlider("line thickness", Vars::Visuals::Simulation::LineThickness, 0, 3, 1, "%d", FSlider_Left | FSlider_Clamp);
+						FColorPicker("outline color##simtest", Vars::Visuals::Simulation::OutlineColor, 0, FColorPicker_Left);
+						FToggle("even thickness check", Vars::Visuals::Simulation::DoEvenBullshit, FToggle_Left);
+
 						FSlider("seperator spacing", Vars::Visuals::Simulation::SeparatorSpacing, 1, 16, 1, "%d", FSlider_Left);
 						FSlider("seperator length", Vars::Visuals::Simulation::SeparatorLength, 2, 16, 1, "%d", FSlider_Right);
 					} EndSection();
@@ -1785,8 +1796,15 @@ void CMenu::MenuSettings()
 								IconImage(ICON_MD_VISIBILITY);
 							}
 							SetCursorPos({ vOriginalPos.x + lOffset, vOriginalPos.y + H::Draw.Scale(7) });
-							FText(player.m_sName);
-							lOffset += FCalcTextSize(player.m_sName).x + H::Draw.Scale(8);
+
+							// append their alias if they have one
+
+							std::string sPlayerName(player.m_sName);
+							if (F::PlayerUtils.m_mPlayerAliases.contains(player.m_uFriendsID))
+								sPlayerName += std::format(" [{}]", F::PlayerUtils.m_mPlayerAliases[player.m_uFriendsID].c_str());
+
+							FText(sPlayerName.c_str());
+							lOffset += FCalcTextSize(sPlayerName.c_str()).x + H::Draw.Scale(8);
 
 							// buttons
 							if (!player.m_bFake)

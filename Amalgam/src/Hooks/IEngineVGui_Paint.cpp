@@ -23,9 +23,11 @@ static void Paint()
 		// dumb FUCKN+IG CHeck for fonts
 		int w = 0, h = 0; I::MatSystemSurface->GetTextSize(H::Fonts.GetFont(FONT_ESP).m_dwFont, L"", w, h);
 		if (!h)
-			H::Fonts.Reload(Vars::Menu::Scale.Map[DEFAULT_BIND]);
+			H::Fonts.Reload(1.f);
 
 		auto pLocal = H::Entities.GetLocal();
+		auto pWeapon = H::Entities.GetWeapon();
+
 		if (pLocal && !I::EngineVGui->IsGameUIVisible())
 		{
 			F::CameraWindow.Draw();
@@ -45,6 +47,8 @@ static void Paint()
 			F::CritHack.Draw(pLocal);
 			F::Visuals.DrawTicks(pLocal);
 			F::Visuals.DrawDebugInfo(pLocal);
+
+			F::Visuals.SplashRadius(pLocal, false);
 		}
 
 		F::Notifications.Draw();

@@ -5,20 +5,37 @@
 #include <utility>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/join.hpp>
+#include "../Misc/Misc.h"
 
 bool CCommands::Run(const std::string& cmd, std::deque<std::string>& args)
 {
 	auto uHash = FNV1A::Hash32(cmd.c_str());
 	if (!CommandMap.contains(uHash))
-		return false;
+	{
+		if (Aliases.contains(uHash))
+		{
+			uHash = Aliases[uHash];
+
+			// aliases should usually correspond to an existing command but just in case
+			if (!CommandMap.contains(uHash))
+				return false;
+		}
+		else
+			return false;
+	}
 
 	CommandMap[uHash](args);
 	return true;
 }
 
-void CCommands::Register(const std::string & name, CommandCallback callback)
+void CCommands::Register(const std::string& name, CommandCallback callback)
 {
 	CommandMap[FNV1A::Hash32(name.c_str())] = std::move(callback);
+}
+
+void CCommands::RegisterAlias(const std::string& alias, const std::string& commandName)
+{
+	Aliases[FNV1A::Hash32(alias.c_str())] = FNV1A::Hash32(commandName.c_str());
 }
 
 void CCommands::Initialize()
@@ -76,10 +93,20 @@ void CCommands::Initialize()
 			SDK::Output(std::format("Value of {} is {}", cvarName, foundCVar->GetString()).c_str());
 		});
 
+	Register("unlockall", [](const std::deque<std::string>& args)
+		{
+			F::Misc.UnlockAchievements();
+		});
+
 	Register("unload", [](const std::deque<std::string>& args)
 		{
 			if (F::Menu.IsOpen)
 				I::MatSystemSurface->SetCursorAlwaysVisible(F::Menu.IsOpen = false);
 			U::Core.bUnload = true;
 		});
+
+	RegisterAlias("rijin_setcvar", "setcvar");
+	RegisterAlias("rijin_unlockall", "unlockall");
+
+	// maybee add a command to control cheat settings?
 }

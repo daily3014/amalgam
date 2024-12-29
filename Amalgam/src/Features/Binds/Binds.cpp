@@ -69,9 +69,15 @@ void CBinds::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
 
 					switch (tBind.Info)
 					{
-					case 0: tBind.Active = bKey; break;
+					case 0:
+						if (tBind.Not)
+							bKey = !bKey;
+						tBind.Active = bKey;
+						break;
 					case 1:
-					case 2: if (bKey) tBind.Active = !tBind.Active;
+					case 2:
+						if (bKey)
+							tBind.Active = !tBind.Active;
 					}
 					break;
 				}
@@ -114,7 +120,27 @@ void CBinds::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
 	getBinds(DEFAULT_BIND);
 }
 
+template <typename T>
+std::vector<Bind_t*> CBinds::GetBindForCVar(const ConfigVar<T>& var)
+{
+	ConfigVar<T> ncVar = var;
+	std::vector<Bind_t*> vBindsForCVar;
 
+	for (auto it = vBinds.rbegin(); it != vBinds.rend(); it++) 
+	{
+		int iBind = std::distance(vBinds.begin(), it.base()) - 1;
+		auto& tBind = *it;
+
+		if (ncVar.As<T>()->Map.contains(iBind))
+		{
+			vBindsForCVar.push_back(&tBind);
+		}
+	}
+
+	return vBindsForCVar;
+}
+
+template std::vector<Bind_t*> CBinds::GetBindForCVar<bool>(const ConfigVar<bool>&);
 
 bool CBinds::GetBind(int iID, Bind_t* pBind)
 {

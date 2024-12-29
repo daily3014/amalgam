@@ -17,7 +17,7 @@ MAKE_HOOK(CClientModeShared_DoPostScreenSpaceEffects, U::Memory.GetVFunc(I::Clie
 	auto pWeapon = H::Entities.GetWeapon();
 	if (pLocal)
 	{
-		F::Visuals.SplashRadius(pLocal);
+		F::Visuals.SplashRadius(pLocal, true);
 		if (pWeapon)
 			F::Visuals.ProjectileTrace(pLocal, pWeapon);
 	}

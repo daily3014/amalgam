@@ -6,6 +6,8 @@
 enum EFonts
 {
 	FONT_ESP,
+	FONT_ESP_SMALL,
+	FONT_ESP_MEDIUM,
 	FONT_INDICATORS
 };
 

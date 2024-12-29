@@ -4,6 +4,8 @@
 #include "../PacketManip/AntiAim/AntiAim.h"
 #include "../Aimbot/AutoRocketJump/AutoRocketJump.h"
 #include "../Backtrack/Backtrack.h"
+#include "../Binds/Binds.h"
+#include <functional>
 
 void CTickshiftHandler::Reset()
 {
@@ -36,7 +38,22 @@ void CTickshiftHandler::Recharge(CTFPlayer* pLocal)
 
 	if (!Vars::CL_Move::Doubletap::RechargeTicks.Value && !bPassive
 		|| m_bDoubletap || m_bWarp || m_iShiftedTicks == m_iMaxShift || m_bSpeedhack)
+	{
+		if (m_iShiftedTicks == m_iMaxShift)
+		{
+			// deactivate toggle binds
+			auto vBinds = F::Binds.GetBindForCVar<bool>(Vars::CL_Move::Doubletap::RechargeTicks);
+
+			for (auto& element : vBinds) {
+				if (!element->Active || element->Info != 1)
+					continue;
+
+				element->Active = false;
+			}
+		}
+
 		return;
+	}
 
 	m_bRecharge = true;
 	m_iShiftedGoal = m_iShiftedTicks + 1;

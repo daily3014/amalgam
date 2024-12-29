@@ -2,8 +2,10 @@
 
 void CFonts::Reload(float flDPI)
 {
-	m_mapFonts[FONT_ESP] = { "Verdana", int(12.f * flDPI), FONTFLAG_DROPSHADOW, 0 };
-	m_mapFonts[FONT_INDICATORS] = { "micross", int(13.f * flDPI), FONTFLAG_OUTLINE, 0 };
+	m_mapFonts[FONT_ESP]		= { "micross",		12,			FONTFLAG_DROPSHADOW,	600 }; // for player names
+	m_mapFonts[FONT_ESP_SMALL]	= { "Small Fonts",	8,			FONTFLAG_DROPSHADOW,	0 }; // flags
+	m_mapFonts[FONT_ESP_MEDIUM] = { "Small Fonts",	5*2,		FONTFLAG_DROPSHADOW,	0 }; // weapon name
+	m_mapFonts[FONT_INDICATORS] = { "micross",		13,			FONTFLAG_OUTLINE,		0 }; // visual indicators
 
 	for (auto& [_, fFont] : m_mapFonts)
 	{

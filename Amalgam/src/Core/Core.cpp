@@ -36,7 +36,8 @@ void CCore::Load()
 	F::Configs.LoadConfig(F::Configs.sCurrentConfig, false);
 	F::Menu.ConfigLoaded = true;
 
-	SDK::Output("Amalgam", "Loaded", { 175, 150, 255, 255 }, true, false, false, true);
+	// temporary fix for crashing on reinject
+	// SDK::Output("Amalgam", "Loaded", { 175, 150, 255, 255 }, true, false, false, true);
 }
 
 void CCore::Loop()
@@ -55,7 +56,7 @@ void CCore::Unload()
 {
 	if (bEarly)
 	{
-		SDK::Output("Amalgam", "Cancelled", { 175, 150, 255, 255 }, true, false, false, true);
+		// SDK::Output("Amalgam", "Cancelled", { 175, 150, 255, 255 }, true, false, false, true);
 		return;
 	}
 
@@ -84,5 +85,5 @@ void CCore::Unload()
 	U::ConVars.Unload();
 	F::Materials.UnloadMaterials();
 
-	SDK::Output("Amalgam", "Unloaded", { 175, 150, 255, 255 }, true, false, false, true);
+	// SDK::Output("Amalgam", "Unloaded", { 175, 150, 255, 255 }, true, false, false, true);
 }
