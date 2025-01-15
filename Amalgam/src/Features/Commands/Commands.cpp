@@ -7,6 +7,8 @@
 #include <boost/algorithm/string/join.hpp>
 #include "../Misc/Misc.h"
 
+// todo: make .cfg work with custom cmds
+
 bool CCommands::Run(const std::string& cmd, std::deque<std::string>& args)
 {
 	auto uHash = FNV1A::Hash32(cmd.c_str());

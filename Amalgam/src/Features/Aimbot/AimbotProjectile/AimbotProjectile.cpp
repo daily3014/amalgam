@@ -5,11 +5,14 @@
 #include "../../Simulation/ProjectileSimulation/ProjectileSimulation.h"
 #include "../../TickHandler/TickHandler.h"
 #include "../../Visuals/Visuals.h"
+#include <numeric>
+#include <vector>
 
 //#define SPLASH_DEBUG1 // normal splash visualization
 //#define SPLASH_DEBUG2 // obstructed splash visualization
 //#define SPLASH_DEBUG3 // points visualization
 //#define SPLASH_DEBUG4 // trace visualization
+//#define HITCHANCE_DEBUG // hitchance test
 
 std::vector<Target_t> CAimbotProjectile::GetTargets(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
 {
@@ -896,8 +899,6 @@ bool CAimbotProjectile::TestAngle(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, Tar
 	return bDidHit;
 }
 
-
-
 int CAimbotProjectile::CanHit(Target_t& target, CTFPlayer* pLocal, CTFWeaponBase* pWeapon,
 	std::deque<Vec3>* pPlayerPath, std::deque<Vec3>* pProjectilePath, std::vector<DrawBox>* pBoxes, float* pTimeTo)
 {
@@ -1215,6 +1216,16 @@ bool CAimbotProjectile::RunMain(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUser
 #endif
 	for (auto& target : targets)
 	{
+		const int iIndex = target.m_pEntity->entindex();
+#if defined(HITCHANCE_DEBUG)
+		if (m_mHitchances.contains(iIndex))
+		{
+			auto& Info = m_mHitchances[iIndex];
+			if (Info.m_flHitchance <= Vars::Aimbot::Projectile::MoveHitchance.Value / 100)
+				continue;
+		}
+#endif
+		
 		float flTimeTo = 0.f; std::deque<Vec3> vPlayerPath, vProjectilePath; std::vector<DrawBox> vBoxes = {};
 		const int iResult = CanHit(target, pLocal, pWeapon, &vPlayerPath, &vProjectilePath, &vBoxes, &flTimeTo);
 		if (!iResult) continue;
@@ -1377,4 +1388,138 @@ void CAimbotProjectile::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd*
 	}
 
 	m_bLastTickHeld = Vars::Aimbot::General::AimType.Value;
+}
+
+void CAimbotProjectile::UpdateHitchance(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
+{
+	if (!pWeapon || !pLocal)
+		return;
+
+	auto targets = SortTargets(pLocal, pWeapon);
+	if (targets.empty())
+		return;
+
+	// todo: use the first velocity of each "chunk" (vel, pos, pos, pos, pos, vel, pos, pos, pos, pos)
+
+	auto CalculateHitchance = [](CTFPlayer* pTarget, HitChanceInfo_t* Info) -> float
+		{
+			PlayerStorage Storage;
+
+			Cache CachedData(pTarget->m_vecOrigin(), pTarget->m_angRotation());
+
+			const Record FirstRecord = Info->m_vPredictedMovement.at(0);
+			pTarget->m_vecOrigin() = FirstRecord.m_vOrigin;
+			pTarget->SetAbsAngles(FirstRecord.m_vAngles);
+			pTarget->m_vecVelocity() = Info->m_vVelocity;
+
+			auto RestoreThatShit = [&Storage, CachedData, pTarget]()
+				{
+					F::MoveSim.Restore(Storage);
+					CachedData.Restore(pTarget);
+				};
+			
+			if (!F::MoveSim.Initialize(pTarget, Storage, false, false))
+			{
+				RestoreThatShit();
+				return 0.f;
+			}
+
+			float Score = 1000;
+			const float Decrement = 1000.f / Info->m_vPredictedMovement.size();
+
+			for (int i = 0; i < Info->m_vPredictedMovement.size(); i++)
+			{
+				const Record NextRecord = Info->m_vPredictedMovement.at(i);
+				const Vec3 vRecordedOrigin = NextRecord.m_vOrigin;
+				F::MoveSim.RunTick(Storage);
+				const Vec3 vPredictedOrigin = Storage.m_MoveData.m_vecAbsOrigin;
+
+				float flHorizontalDifference = std::abs(vRecordedOrigin.x - vPredictedOrigin.x);
+				float flVerticalDifference = std::abs(vRecordedOrigin.y - vPredictedOrigin.y);
+
+				const float HorizontalTolerance = Vars::Aimbot::Projectile::HorizontalTolerance.Value;
+				const float VerticalTolerance = Vars::Aimbot::Projectile::VerticalTolerance.Value;
+				if (flHorizontalDifference > HorizontalTolerance || flVerticalDifference > VerticalTolerance)
+				{
+					float Multiply = 1 + std::log(std::max(flHorizontalDifference / HorizontalTolerance, flVerticalDifference / VerticalTolerance));
+					Score -= Decrement * Multiply;
+				}
+			}
+
+			if (Vars::Debug::Info.Value)
+			{
+				std::deque<Vec3> vActualPath = {}; 
+				for (int i = 0; i < Info->m_vPredictedMovement.size(); i++)
+				{
+					const Record vRecord = Info->m_vPredictedMovement.at(i);
+					vActualPath.push_back(vRecord.m_vOrigin);
+				}
+
+				G::PathStorage.clear();
+				G::PathStorage.push_back({ vActualPath, I::GlobalVars->curtime + 1.f, Color_t{0, 255, 0, 255}, 1, false });
+				G::PathStorage.push_back({ Storage.m_vPath, I::GlobalVars->curtime + 1.f, Color_t{255, 0, 0, 255}, 1, false });
+				
+				G::BoxStorage.clear();
+				G::BoxStorage.push_back({ Info->m_vPredictedMovement.at(0).m_vOrigin, {}, {-1.f, -1.f, -1.f}, {1.f, 1.f, 1.f}, I::GlobalVars->curtime + 5.f, {255, 0, 0, 255}, {0, 0, 0, 0}});
+			}
+
+			RestoreThatShit();
+			 
+			return Score / 1000;
+		};
+
+	for (auto& target : targets)
+	{
+		const int iIndex = target.m_pEntity->entindex();
+		if ((target.m_TargetType != ETargetType::Player && target.m_TargetType != ETargetType::NPC) || target.m_pEntity->IsDormant())
+		{
+			if (m_mHitchances.contains(iIndex))
+				m_mHitchances.erase(iIndex);
+			continue;
+		}
+
+		CTFPlayer* pPlayer = target.m_pEntity->As<CTFPlayer>();
+
+		if (!m_mHitchances.contains(iIndex))
+		{
+			m_mHitchances[iIndex] = { I::GlobalVars->tickcount };
+			m_mHitchances[iIndex].m_vVelocity = pPlayer->m_vecVelocity();
+			continue;
+		}
+
+		auto& Info = m_mHitchances[iIndex];
+
+		if (I::GlobalVars->tickcount == Info.m_iTick + Info.m_iSamples)
+		{
+			Info.m_vVelocity = pPlayer->m_vecVelocity();
+			Info.m_iTick = I::GlobalVars->tickcount;
+		}
+
+		Info.m_vPredictedMovement.push_back({
+			pPlayer->m_vecOrigin(),
+			pPlayer->GetAbsAngles()
+		});
+		
+		if (Info.m_vPredictedMovement.size() == Info.m_iSamples)
+		{
+			// float CalculatedHitchance = CalculateHitchance(pPlayer, &Info);
+			//Info.m_flHitchances.push_back(CalculatedHitchance);
+			Info.m_vPredictedMovement.erase(Info.m_vPredictedMovement.begin());
+		}
+
+		if (Info.m_flHitchances.size() == 5)
+		{
+			Info.m_flHitchance = std::max(std::accumulate(Info.m_flHitchances.begin(), Info.m_flHitchances.end(), 0.f) / Info.m_flHitchances.size(), 0.f);
+			Info.m_flHitchances.erase(Info.m_flHitchances.begin());
+		}
+	}
+}
+
+void Cache::Restore(CTFPlayer* pEntity) const
+{
+	if (!pEntity || pEntity->IsDormant())
+		return;
+
+	pEntity->SetAbsAngles(m_vCachedAngles);
+	pEntity->m_vecOrigin() = m_vCachedOrigin;
 }

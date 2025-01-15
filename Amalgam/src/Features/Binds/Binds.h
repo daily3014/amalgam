@@ -5,10 +5,11 @@ struct Bind_t
 {
 	std::string Name = "";
 	int Type = 0; // Key, Class, Weapon type
-	int Info = 0; // Key: Hold, Toggle, Double click
+	int Info = 0; // Key: Hold, Toggle, Double click, Cycle
 	// Class: Scout, Soldier, Pyro, Demoman, Heavy, Engineer, Medic, Sniper, Spy
 	// Weapon type: Hitscan, Projectile, Melee
 	int Key = 0;
+	int Index = 0;
 	bool Not = false;
 	KeyStorage Storage = {};
 

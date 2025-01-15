@@ -2,12 +2,44 @@
 #include "../../../SDK/SDK.h"
 
 #include "../AimbotGlobal/AimbotGlobal.h"
+#include "../../Simulation/MovementSimulation/MovementSimulation.h"
 
 enum PointType_
 {
 	PointType_None = 0,
 	PointType_Regular = (1 << 0),
 	PointType_Obscured = (1 << 1)
+};
+
+class Cache
+{
+	Vec3 m_vCachedOrigin;
+	QAngle m_vCachedAngles;
+public:
+	void Restore(CTFPlayer* pEntity) const;
+	Cache(Vec3 origin, QAngle angle)
+	{
+		m_vCachedOrigin = origin;
+		m_vCachedAngles = angle;
+	}
+};
+
+struct Record
+{
+	Vec3 m_vOrigin;
+	QAngle m_vAngles;
+	Vec3 m_vVelocity;
+};
+
+struct HitChanceInfo_t
+{
+	int m_iTick = 0;
+	int m_iSamples = TIME_TO_TICKS(0.3f);
+	std::vector<Record> m_vPredictedMovement = {};
+	Vec3 m_vVelocity;
+
+	std::vector<float> m_flHitchances = {};
+	float m_flHitchance = 0;
 };
 
 struct Solution_t
@@ -67,9 +99,12 @@ class CAimbotProjectile
 	void Aim(CUserCmd* pCmd, Vec3& vAngle);
 
 	bool m_bLastTickHeld = false;
-
+	
 public:
 	void Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd);
+
+	void UpdateHitchance(CTFPlayer* pLocal, CTFWeaponBase* pWeapon);
+	std::unordered_map<int, HitChanceInfo_t> m_mHitchances = {};
 
 	int m_bLastTickCancel = 0;
 };

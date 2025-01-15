@@ -154,6 +154,7 @@ namespace Vars
 			CVarEnum(Modifiers, 0b1010, NONE, ChargeWeapon = 1 << 0, CancelCharge = 1 << 1, BodyaimIfLethal = 1 << 2, UsePrimeTime = 1 << 3)
 			CVar(PredictionTime, 2.f)
 			CVar(Hitchance, 0.f)
+			CVar(MoveHitchance, 0.f) CVar(HorizontalTolerance, 10) CVar(VerticalTolerance, 30)
 			CVar(AutodetRadius, 90.f)
 			CVar(SplashRadius, 90.f)
 			CVar(AutoRelease, 0.f)

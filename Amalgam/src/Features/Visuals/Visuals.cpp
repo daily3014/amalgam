@@ -333,9 +333,9 @@ static void SimulateRocket(CTFPlayer* pLocal, CBaseEntity* pProjectile, float fl
 
 	if (flFraction == 1.f)
 	{
+		// poopy way of tracing against our character cuz it just ignores it lol good enough tho
 		Vec3 vClosestPoint = {}; reinterpret_cast<CCollisionProperty*>(pLocal->GetCollideable())->CalcNearestPoint(vEndPos, &vClosestPoint);
 
-		// poopy way of tracing against our character cuz it just ignores it lol good enough tho
 		Vec3 vMins = pLocal->m_vecMins();
 		Vec3 vMaxs = pLocal->m_vecMaxs();
 
@@ -374,6 +374,25 @@ static void DrawOutlinedLine(const Vec3& vStart, const Vec3& vEnd, int iThicknes
 	}
 }
 
+static float CalculateExplosionRadius(bool bTouched = false, float flCreationTime = 0, float flNow = 0, float flScale = 0.95)
+{
+	float flRadius = flScale;
+	flRadius *= 146.f;
+
+	if (!bTouched)
+	{
+		static auto tf_grenadelauncher_livetime = U::ConVars.FindVar("tf_grenadelauncher_livetime");
+		static auto tf_sticky_radius_ramp_time = U::ConVars.FindVar("tf_sticky_radius_ramp_time");
+		static auto tf_sticky_airdet_radius = U::ConVars.FindVar("tf_sticky_airdet_radius");
+		float flLiveTime = tf_grenadelauncher_livetime ? tf_grenadelauncher_livetime->GetFloat() : 0.8f;
+		float flRampTime = tf_sticky_radius_ramp_time ? tf_sticky_radius_ramp_time->GetFloat() : 2.f;
+		float flAirdetRadius = tf_sticky_airdet_radius ? tf_sticky_airdet_radius->GetFloat() : 0.85f;
+		flRadius *= Math::RemapValClamped(flNow - flCreationTime, flLiveTime, flLiveTime + flRampTime, flAirdetRadius, 1.f);
+	}
+
+	return flRadius;
+}
+
 void CVisuals::SplashRadius(CTFPlayer* pLocal, bool inPostDraw)
 {
 	if (!Vars::Visuals::Simulation::SplashRadius.Value)
@@ -395,10 +414,10 @@ void CVisuals::SplashRadius(CTFPlayer* pLocal, bool inPostDraw)
 		case ETFClassID::CTFGrenadePipebombProjectile:
 			bShouldDraw = Vars::Visuals::Simulation::SplashRadius.Value & (pEntity->As<CTFGrenadePipebombProjectile>()->HasStickyEffects() ? Vars::Visuals::Simulation::SplashRadiusEnum::Stickies : Vars::Visuals::Simulation::SplashRadiusEnum::Pipes);
 			break;
-		case ETFClassID::CTFProjectile_Rocket:
 		case ETFClassID::CTFBaseRocket:
 		case ETFClassID::CTFProjectile_SentryRocket:
 		case ETFClassID::CTFProjectile_EnergyBall:
+		case ETFClassID::CTFProjectile_Rocket:
 			bShouldDraw = Vars::Visuals::Simulation::SplashRadius.Value & Vars::Visuals::Simulation::SplashRadiusEnum::Rockets;
 			break;
 		case ETFClassID::CTFProjectile_Flare:
@@ -472,12 +491,70 @@ void CVisuals::SplashRadius(CTFPlayer* pLocal, bool inPostDraw)
 		}
 
 
-		if (inPostDraw && pWeapon)
+		if (!inPostDraw)
+		{
+			if (!pLocal->IsAlive() || pOwner == pLocal || pOwner->m_iTeamNum() == pLocal->m_iTeamNum() || pEntity->GetClassID() != ETFClassID::CTFProjectile_Rocket)
+				continue;
+
+			Vec3 vPlayerOrigin = pLocal->GetAbsOrigin() + pLocal->GetViewOffset() / 2;
+			bool bIsClose = vPlayerOrigin.DistTo(pEntity->GetAbsOrigin()) <= 1000.f;
+
+			Vec3 vEndPosition;
+
+			SimulateRocket(pLocal, pEntity, 4096.f, vEndPosition);
+			Vec3 vClosestPoint; reinterpret_cast<CCollisionProperty*>(pLocal->GetCollideable())->CalcNearestPoint(vEndPosition, &vClosestPoint);
+
+			bool bInSplashRadius = vClosestPoint.DistTo(vEndPosition) <= flRadius;
+			bool bSafeFromExplosion = true;
+
+			CGameTrace trace = {};
+			CTraceFilterProjectileEnemy filter = {}; filter.pSkip = pLocal;
+			SDK::Trace(vEndPosition, vClosestPoint, MASK_SHOT, &filter, &trace);
+
+			if (trace.m_pEnt)
+			{
+				switch (trace.m_pEnt->GetClassID())
+				{
+				case ETFClassID::CTFPlayer:
+					static CBaseEntity* pTracedOwner = trace.m_pEnt;
+					if (pTracedOwner && pOwner && pTracedOwner->IsPlayer() && pTracedOwner->As<CTFPlayer>()->m_iTeamNum() != pOwner->As<CTFPlayer>()->m_iTeamNum())
+						bSafeFromExplosion = false;
+					break;
+				case ETFClassID::CObjectSentrygun:
+				case ETFClassID::CObjectDispenser:
+				case ETFClassID::CObjectTeleporter:
+					static CBaseEntity* pBuilding = trace.m_pEnt;
+					if (pBuilding && pBuilding->IsBuilding() && pBuilding->m_iTeamNum() == pLocal->m_iTeamNum())
+						bSafeFromExplosion = false;
+					break;
+				}
+			}
+			else
+				bSafeFromExplosion = false;
+
+			if (!bIsClose)
+				continue;
+
+			Color_t cDrawColor = (bInSplashRadius && !bSafeFromExplosion) ? Vars::Colors::IndicatorBad.Value : (bSafeFromExplosion ? Vars::Colors::IndicatorMid.Value : Vars::Colors::IndicatorGood.Value);
+			DrawOutlinedLine(pEntity->GetAbsOrigin(), vPlayerOrigin, 1, cDrawColor, Vars::Visuals::Simulation::OutlineColor.Value);
+
+			Vec3 vEndPositionScreen; if (SDK::W2S(vEndPosition, vEndPositionScreen))
+				H::Draw.FillRectOutline(vEndPositionScreen.x - 6, vEndPositionScreen.y - 6, 10, 10, { 255, 0, 0, 255 }, { 0, 0, 0, 180 });
+
+			Vec3 vRocketScreen; if (SDK::W2S(pEntity->GetAbsOrigin(), vRocketScreen))
+				H::Draw.FillRectOutline(vRocketScreen.x - 3, vRocketScreen.y - 3, 5, 5, cDrawColor, { 0, 0, 0, 180 });
+		}
+		else if (inPostDraw && pWeapon)
 		{
 			Vec3 vEndPosition{ 0, 0, -1000.f };
+			float flLatency = 0;
 
 			switch (pWeapon->GetWeaponID())
 			{
+			case TF_WEAPON_PIPEBOMBLAUNCHER:
+				flLatency = std::max(F::Backtrack.GetReal() - 0.05f, 0.f); // account for latency
+				flRadius = CalculateExplosionRadius(pEntity->As<CTFGrenadePipebombProjectile>()->m_bTouched(), pEntity->As<CTFGrenadePipebombProjectile>()->m_flCreationTime(), I::GlobalVars->curtime + flLatency, 1);
+				break;
 			case TF_WEAPON_ROCKETLAUNCHER:
 			case TF_WEAPON_ROCKETLAUNCHER_DIRECTHIT:
 			case TF_WEAPON_PARTICLE_CANNON:
@@ -491,63 +568,6 @@ void CVisuals::SplashRadius(CTFPlayer* pLocal, bool inPostDraw)
 			if (Color.a)
 				RenderSphere(vEndPosition, flRadius, 50, 50, Color, true);
 		}
-
-
-		if (inPostDraw) 
-			continue;
-
-		// i should move this in a different function later
-		if (!pLocal->IsAlive() || pOwner == pLocal || pOwner->m_iTeamNum() == pLocal->m_iTeamNum() || pEntity->GetClassID() != ETFClassID::CTFBaseRocket)
-			continue;
-			
-		Vec3 vPlayerOrigin = pLocal->GetAbsOrigin() + pLocal->GetViewOffset() / 2;
-		bool bIsClose = vPlayerOrigin.DistTo(pEntity->GetAbsOrigin()) <= 750.f;
-
-		Vec3 vEndPosition;
-
-		SimulateRocket(pLocal, pEntity, 4096.f, vEndPosition);
-		Vec3 vClosestPoint; reinterpret_cast<CCollisionProperty*>(pLocal->GetCollideable())->CalcNearestPoint(vEndPosition, &vClosestPoint);
-		
-		bool bInSplashRadius = vClosestPoint.DistTo(vEndPosition) <= flRadius;
-		bool bSafeFromExplosion = true;
-
-		CGameTrace trace = {}; {
-			CTraceFilterProjectileEnemy filter = {}; filter.pSkip = pLocal;
-			SDK::Trace(vEndPosition, vClosestPoint, MASK_SHOT, &filter, &trace);
-		}
-
-		if (trace.m_pEnt)
-		{
-			switch (trace.m_pEnt->GetClassID())
-			{
-			case ETFClassID::CTFPlayer:
-				static CTFPlayer* pPlayer = trace.m_pEnt->As<CTFPlayer>();
-				if (pPlayer->IsPlayer() && pPlayer->m_iTeamNum() != pOwner->m_iTeamNum())
-					bSafeFromExplosion = false;
-				break;
-			case ETFClassID::CObjectSentrygun:
-			case ETFClassID::CObjectDispenser:
-			case ETFClassID::CObjectTeleporter:
-				static CBaseEntity* pBuilding = trace.m_pEnt;
-				if (pBuilding->m_iTeamNum() == pLocal->m_iTeamNum())
-					bSafeFromExplosion = false;
-				break;
-			}
-		}
-		else
-			bSafeFromExplosion = false;
-
-		if (!bIsClose)
-			return;
-
-		Color_t cDrawColor = (bInSplashRadius && !bSafeFromExplosion) ? Vars::Colors::IndicatorBad.Value : (bSafeFromExplosion ? Vars::Colors::IndicatorMid.Value : Vars::Colors::IndicatorGood.Value);
-		DrawOutlinedLine(pEntity->GetAbsOrigin(), vPlayerOrigin, Vars::Visuals::Simulation::LineThickness.Value, cDrawColor, Vars::Visuals::Simulation::OutlineColor.Value);
-
-		Vec3 vEndPositionScreen; if (SDK::W2S(vEndPosition, vEndPositionScreen))
-			H::Draw.FillRectOutline(vEndPositionScreen.x - 6, vEndPositionScreen.y - 6, 10, 10, { 255, 0, 0, 255 }, { 0, 0, 0, 180 });
-
-		Vec3 vRocketScreen; if (SDK::W2S(pEntity->GetAbsOrigin(), vRocketScreen))
-			H::Draw.FillRectOutline(vRocketScreen.x - 3, vRocketScreen.y - 3, 5, 5, cDrawColor, { 0, 0, 0, 180 });
 	}
 }
 
@@ -825,27 +845,29 @@ void CVisuals::SetupMaterials()
 	KeyValues* pVMTKeyValues = new KeyValues("unlitgeneric");
 	pVMTKeyValues->SetInt("$vertexcolor", 1);
 	pVMTKeyValues->SetInt("$vertexalpha", 1);
-	m_pVertexColor = F::Materials.Create("__utilVertexColor_Amalgam", pVMTKeyValues);
+	m_pSphereMaterial = F::Materials.Create("__utilVertexColor_Amalgam", pVMTKeyValues);
 
 	pVMTKeyValues = new KeyValues("unlitgeneric");
 	pVMTKeyValues->SetInt("$vertexcolor", 1);
 	pVMTKeyValues->SetInt("$vertexalpha", 1);
 	pVMTKeyValues->SetInt("$ignorez", 1);
-	m_pVertexColorIgnoreZ = F::Materials.Create("__utilVertexColorIgnoreZ_Amalgam", pVMTKeyValues);
+	m_pSphereMaterialIgnoreZ = F::Materials.Create("__utilVertexColorIgnoreZ_Amalgam", pVMTKeyValues);
+
+	pVMTKeyValues = new KeyValues("wireframe");
+	pVMTKeyValues->SetInt("$vertexcolor", 1);
+	pVMTKeyValues->SetInt("$vertexalpha", 1);
+	m_pSphereMaterialWireframe = F::Materials.Create("__utilVertexColorIgnoreZ_Amalgam", pVMTKeyValues);
 }
 
 void CVisuals::RenderSphere(const Vec3& vPos, float flRadius, int nTheta, int nPhi, Color_t c, bool bZBuffer)
 {
-	if (!m_pVertexColor || !m_pVertexColorIgnoreZ)
+	if (!m_pSphereMaterial || !m_pSphereMaterialIgnoreZ || !m_pSphereMaterialWireframe)
 		SetupMaterials();
 	
-	IMaterial* pMaterial = bZBuffer ? m_pVertexColor : m_pVertexColorIgnoreZ;
+	IMaterial* pMaterial = bZBuffer ? m_pSphereMaterial : m_pSphereMaterialIgnoreZ;
 
 	if (pMaterial->IsErrorMaterial())
-	{
-		SDK::Output("couldnt find material for RenderSphere");
 		return;
-	}
 
 	S::RenderSphere.Call<void>(std::ref(vPos), flRadius, nTheta, nPhi, c, pMaterial);
 }

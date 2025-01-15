@@ -208,8 +208,14 @@ void CMenu::MenuAimbot()
 					FDropdown("Modifiers## Projectile", Vars::Aimbot::Projectile::Modifiers, { "Charge shot", "Cancel charge", "Bodyaim if lethal", "Use prime time" }, {}, FDropdown_Multi);
 					FSlider("Max simulation time", Vars::Aimbot::Projectile::PredictionTime, 0.1f, 10.f, 0.25f, "%gs", FSlider_Min | FSlider_Precision);
 					PushTransparent(!FGet(Vars::Aimbot::Projectile::StrafePrediction));
-						FSlider("Hit chance", Vars::Aimbot::Projectile::Hitchance, 0.f, 100.f, 5.f, "%g%%", FSlider_Clamp | FSlider_Precision);
+						FSlider("Strafe confidence", Vars::Aimbot::Projectile::Hitchance, 0.f, 100.f, 5.f, "%g%%", FSlider_Clamp | FSlider_Precision);
 					PopTransparent();
+					FSlider("Hit chance", Vars::Aimbot::Projectile::MoveHitchance, 0.f, 100.f, 5.f, "%g%%", FSlider_Clamp | FSlider_Precision);
+					if (Vars::Debug::Info.Value)
+					{
+						FSlider("Horizontal tolerance", Vars::Aimbot::Projectile::HorizontalTolerance, 1.f, 100.f, 1.f, "%ghu", FSlider_Precision);
+						FSlider("Vertical tolerance", Vars::Aimbot::Projectile::VerticalTolerance, 1.f, 100.f, 1.f, "%ghu", FSlider_Precision);
+					}
 					FSlider("Autodet radius", Vars::Aimbot::Projectile::AutodetRadius, 0.f, 100.f, 5.f, "%g%%", FSlider_Clamp | FSlider_Precision);
 					FSlider("Splash radius", Vars::Aimbot::Projectile::SplashRadius, 0.f, 100.f, 5.f, "%g%%", FSlider_Clamp | FSlider_Precision);
 					PushTransparent(!FGet(Vars::Aimbot::Projectile::AutoRelease));
@@ -1531,7 +1537,7 @@ void CMenu::MenuSettings()
 						FDropdown("Type", &tBind.Type, { "Key", "Class", "Weapon type" }, {}, FDropdown_Left);
 						switch (tBind.Type)
 						{
-						case 0: tBind.Info = std::min(tBind.Info, 2); FDropdown("Behavior", &tBind.Info, { "Hold", "Toggle", "Double click" }, {}, FDropdown_Right); break;
+						case 0: tBind.Info = std::min(tBind.Info, 2); FDropdown("Behavior", &tBind.Info, { "Hold", "Toggle", "Double click", "Cycle"}, {}, FDropdown_Right); break;
 						case 1: tBind.Info = std::min(tBind.Info, 8); FDropdown("Class", &tBind.Info, { "Scout", "Soldier", "Pyro", "Demoman", "Heavy", "Engineer", "Medic", "Sniper", "Spy" }, {}, FDropdown_Right); break;
 						case 2: tBind.Info = std::min(tBind.Info, 2); FDropdown("Weapon type", &tBind.Info, { "Hitscan", "Projectile", "Melee" }, {}, FDropdown_Right); break;
 						}

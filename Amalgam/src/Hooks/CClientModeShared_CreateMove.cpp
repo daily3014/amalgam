@@ -1,5 +1,6 @@
 #include "../SDK/SDK.h"
 #include "../Features/Aimbot/Aimbot.h"
+#include "../Features/Aimbot/AimbotProjectile/AimbotProjectile.h"
 #include "../Features/Backtrack/Backtrack.h"
 #include "../Features/CritHack/CritHack.h"
 #include "../Features/EnginePrediction/EnginePrediction.h"
@@ -139,7 +140,8 @@ MAKE_HOOK(CClientModeShared_CreateMove, U::Memory.GetVFunc(I::ClientModeShared, 
 	F::Spectate.CreateMove(pLocal, pCmd);
 	F::Misc.RunPre(pLocal, pCmd);
 	F::Backtrack.Run(pCmd);
-
+	
+	F::AimbotProjectile.UpdateHitchance(pLocal, pWeapon);
 	F::EnginePrediction.Start(pLocal, pCmd);
 	F::Aimbot.Run(pLocal, pWeapon, pCmd);
 	F::EnginePrediction.End(pLocal, pCmd);

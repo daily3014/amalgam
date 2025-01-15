@@ -12,7 +12,7 @@ private:
 	float GetBaseYaw(CTFPlayer* pLocal, CUserCmd* pCmd, bool bFake);
 	float GetYaw(CTFPlayer* pLocal, CUserCmd* pCmd, bool bFake);
 
-	float GetPitch(float flCurPitch);
+    float GetPitch(CTFPlayer* pLocal, float flCurPitch);
 	void MinWalk(CTFPlayer* pLocal, CUserCmd* pCmd, bool bSendPacket);
 
 public:

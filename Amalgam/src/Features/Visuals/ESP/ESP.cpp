@@ -2,6 +2,7 @@
 
 #include "../../Players/PlayerUtils.h"
 #include "../../Simulation/MovementSimulation/MovementSimulation.h"
+#include "../../Aimbot/AimbotProjectile/AimbotProjectile.h"
 #include <algorithm>
 #include <string>
 
@@ -217,6 +218,12 @@ void CESP::StorePlayers(CTFPlayer* pLocal)
 			int iAverage = TIME_TO_TICKS(F::MoveSim.GetPredictedDelta(pPlayer));
 			int iCurrent = H::Entities.GetChoke(pPlayer->entindex());
 			tCache.m_vText.push_back({ TextRight, std::format("LAG {}, {}", iAverage, iCurrent), Vars::Menu::Theme::Active.Value, Vars::Menu::Theme::Background.Value });
+		
+			if (F::AimbotProjectile.m_mHitchances.contains(iIndex))
+			{
+				auto& Info = F::AimbotProjectile.m_mHitchances[iIndex];
+				tCache.m_vText.push_back({ TextRight, std::format("HITCHANCE = {:.0f}%%", Info.m_flHitchance * 100.f), Vars::Menu::Theme::Active.Value, Vars::Menu::Theme::Background.Value });
+			}
 		}
 
 		{

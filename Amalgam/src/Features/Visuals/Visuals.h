@@ -20,8 +20,9 @@ struct PickupData
 class CVisuals
 {
 private:
-	IMaterial* m_pVertexColor;
-	IMaterial* m_pVertexColorIgnoreZ;
+	IMaterial* m_pSphereMaterial;
+	IMaterial* m_pSphereMaterialIgnoreZ;
+	IMaterial* m_pSphereMaterialWireframe;
 	int m_nHudZoom = 0;
 	std::vector<Sightline_t> m_vSightLines;
 	std::unordered_map<int, Vec3> m_vProjInfos;

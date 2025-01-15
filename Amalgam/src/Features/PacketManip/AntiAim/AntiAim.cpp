@@ -162,10 +162,13 @@ float CAntiAim::GetYaw(CTFPlayer* pLocal, CUserCmd* pCmd, bool bFake)
 	return flYaw;
 }
 
-float CAntiAim::GetPitch(float flCurPitch)
+float CAntiAim::GetPitch(CTFPlayer* pLocal, float flCurPitch)
 {
 	float flRealPitch = 0.f, flFakePitch = 0.f;
 	int iJitter = GetJitter(FNV1A::Hash32Const("Pitch"));
+
+	if (pLocal->IsSwimming())
+		return flCurPitch;
 
 	switch (Vars::AntiHack::AntiAim::PitchReal.Value)
 	{
@@ -231,7 +234,7 @@ void CAntiAim::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd, bo
 	}
 
 	Vec2& vAngles = bSendPacket ? vFakeAngles : vRealAngles;
-	vAngles.x = iAntiBackstab != 2 ? GetPitch(pCmd->viewangles.x) : pCmd->viewangles.x;
+	vAngles.x = iAntiBackstab != 2 ? GetPitch(pLocal, pCmd->viewangles.x) : pCmd->viewangles.x;
 	vAngles.y = !iAntiBackstab ? GetYaw(pLocal, pCmd, bSendPacket) : pCmd->viewangles.y;
 
 	SDK::FixMovement(pCmd, vAngles);
