@@ -7,7 +7,7 @@
 #define SetType(type, cond)\
 {\
 	if (var->As<type>()->Map.contains(cond))\
-		var->As<type>()->Value = var->As<type>()->Map[cond];\
+		var->As<type>()->Value = var->As<type>()->Map[cond][CURRENT_VALUE_INDEX];\
 }
 #define SetT(type, cond) if (IsType(type)) SetType(type, cond)
 
@@ -178,7 +178,7 @@ void CBinds::AddBind(int iBind, Bind_t tBind)
 
 #define RemoveType(type, bind)\
 {\
-	std::unordered_map<int, type> mMap = {};\
+	std::unordered_map<int, std::unordered_map<int, type>> mMap = {};\
 	for (auto it = var->As<type>()->Map.begin(); it != var->As<type>()->Map.end(); it++)\
 	{\
 		int iKey = it->first;\

@@ -3,6 +3,7 @@
 #include "IClientRenderable.h"
 #include "IClientThinkable.h"
 #include "../Interfaces.h"
+#include "../../Helpers/Entities/Dormancy.h"
 
 class CMouthInfo;
 struct SpatializationInfo_t;

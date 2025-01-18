@@ -21,7 +21,7 @@ static inline bool GetPlayerChams(CBaseEntity* pEntity, CTFPlayer* pLocal, Chams
 	*pChams = bTeam
 		? Chams_t(Vars::Chams::Friendly::Visible.Value, Vars::Chams::Friendly::Occluded.Value)
 		: Chams_t(Vars::Chams::Enemy::Visible.Value, Vars::Chams::Enemy::Occluded.Value);
-	return bTeam ? bFriendly : bEnemy;
+	return (bTeam ? bFriendly : bEnemy) && pEntity != pLocal;
 }
 
 bool CChams::GetChams(CTFPlayer* pLocal, CBaseEntity* pEntity, Chams_t* pChams)

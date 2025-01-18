@@ -229,6 +229,7 @@ void CMenu::MenuAimbot()
 					FToggle("Prioritize players", Vars::Aimbot::Projectile::AutoDetPrioritizePlayers, FToggle_Left);
 					FToggle("Safe mode", Vars::Aimbot::Projectile::AutoDetSafeMode, FToggle_Right);
 					FToggle("Predict explosion radius", Vars::Aimbot::Projectile::AutoDetPredictRadius, FToggle_Left);
+					FToggle("Target dormant players", Vars::Aimbot::Projectile::AutoDetTargetDormant, FToggle_Right);
 					FSlider("Low health percentage", Vars::Aimbot::Projectile::AutoDetLowHealthPercentage, 0.f, 100.f, 5.f, "%g%%", FSlider_Clamp | FSlider_Precision);
 					FSlider("Max simulation time## prioritize plrs", Vars::Aimbot::Projectile::AutoDetLookAheadTime, 0.1f, 2.5f, 0.25f, "%gs", FSlider_Min | FSlider_Precision);
 				} EndSection();
@@ -244,6 +245,8 @@ void CMenu::MenuAimbot()
 						FSlider("high min samples##ground", Vars::Aimbot::Projectile::GroundHighMinimumSamples, 3, 66, 1, "%i", FSlider_Right);
 						FSlider("low min distance##ground", Vars::Aimbot::Projectile::GroundLowMinimumDistance, 0.f, 10000.f, 100.f, "%g", FSlider_Left | FSlider_Min | FSlider_Precision);
 						FSlider("high min distance##ground", Vars::Aimbot::Projectile::GroundHighMinimumDistance, 0.f, 10000.f, 100.f, "%g", FSlider_Right | FSlider_Min | FSlider_Precision);
+						FSlider("new weight##ground", Vars::Aimbot::Projectile::GroundNewWeight, 0.f, 200.f, 5.f, "%g%%", FSlider_Left | FSlider_Min | FSlider_Precision);
+						FSlider("old weight##ground", Vars::Aimbot::Projectile::GroundOldWeight, 0.f, 200.f, 5.f, "%g%%", FSlider_Right | FSlider_Min | FSlider_Precision);
 
 						FText("air");
 						FSlider("samples##air", Vars::Aimbot::Projectile::AirSamples, 3, 66, 1, "%i", FSlider_Left);
@@ -252,6 +255,9 @@ void CMenu::MenuAimbot()
 						FSlider("high min samples##air", Vars::Aimbot::Projectile::AirHighMinimumSamples, 3, 66, 1, "%i", FSlider_Right);
 						FSlider("low min distance##air", Vars::Aimbot::Projectile::AirLowMinimumDistance, 0.f, 10000.f, 100.f, "%g", FSlider_Left | FSlider_Min | FSlider_Precision);
 						FSlider("high min distance##air", Vars::Aimbot::Projectile::AirHighMinimumDistance, 0.f, 10000.f, 100.f, "%g", FSlider_Right | FSlider_Min | FSlider_Precision);
+						FSlider("new weight##air", Vars::Aimbot::Projectile::AirNewWeight, 0.f, 200.f, 5.f, "%g%%", FSlider_Left | FSlider_Min | FSlider_Precision);
+						FSlider("old weight##air", Vars::Aimbot::Projectile::AirOldWeight, 0.f, 200.f, 5.f, "%g%%", FSlider_Right | FSlider_Min | FSlider_Precision);
+
 
 						FText("");
 						FSlider("velocity average count", Vars::Aimbot::Projectile::VelocityAverageCount, 1, 10, 1, "%i", FSlider_Left);
@@ -965,12 +971,12 @@ void CMenu::MenuVisuals()
 
 					FSDropdown("Cheat title", Vars::Menu::CheatName, {}, FSDropdown_AutoUpdate | FDropdown_Left);
 					FSDropdown("Chat info prefix", Vars::Menu::CheatPrefix, {}, FDropdown_Right);
-					FKeybind("Menu primary key", Vars::Menu::MenuPrimaryKey.Map[DEFAULT_BIND], FButton_Left | FKeybind_AllowMenu);
-					FKeybind("Menu secondary key", Vars::Menu::MenuSecondaryKey.Map[DEFAULT_BIND], FButton_Right | FButton_SameLine | FKeybind_AllowMenu);
-					if (Vars::Menu::MenuPrimaryKey.Map[DEFAULT_BIND] == VK_LBUTTON)
-						Vars::Menu::MenuPrimaryKey.Map[DEFAULT_BIND] = VK_INSERT;
-					if (Vars::Menu::MenuSecondaryKey.Map[DEFAULT_BIND] == VK_LBUTTON)
-						Vars::Menu::MenuSecondaryKey.Map[DEFAULT_BIND] = VK_F3;
+					FKeybind("Menu primary key", Vars::Menu::MenuPrimaryKey.Map[DEFAULT_BIND][CURRENT_VALUE_INDEX], FButton_Left | FKeybind_AllowMenu);
+					FKeybind("Menu secondary key", Vars::Menu::MenuSecondaryKey.Map[DEFAULT_BIND][CURRENT_VALUE_INDEX], FButton_Right | FButton_SameLine | FKeybind_AllowMenu);
+					if (Vars::Menu::MenuPrimaryKey.Map[DEFAULT_BIND][CURRENT_VALUE_INDEX] == VK_LBUTTON)
+						Vars::Menu::MenuPrimaryKey.Map[DEFAULT_BIND][CURRENT_VALUE_INDEX] = VK_INSERT;
+					if (Vars::Menu::MenuSecondaryKey.Map[DEFAULT_BIND][CURRENT_VALUE_INDEX] == VK_LBUTTON)
+						Vars::Menu::MenuSecondaryKey.Map[DEFAULT_BIND][CURRENT_VALUE_INDEX] = VK_F3;
 				} EndSection();
 
 				/* Column 2 */
@@ -979,7 +985,7 @@ void CMenu::MenuVisuals()
 				{
 					FDropdown("Indicators", Vars::Menu::Indicators, { "Ticks", "Crit hack", "Spectators", "Ping", "Conditions", "Seed prediction" }, {}, FDropdown_Multi);
 					if (FSlider("Scale", Vars::Menu::Scale, 0.75f, 2.f, 0.25f, "%g", FSlider_Min | FSlider_Precision | FSlider_NoAutoUpdate))
-						H::Fonts.Reload(Vars::Menu::Scale.Map[DEFAULT_BIND]);
+						H::Fonts.Reload(Vars::Menu::Scale.Map[DEFAULT_BIND][CURRENT_VALUE_INDEX]);
 				} EndSection();
 
 				EndTable();
@@ -1795,7 +1801,7 @@ void CMenu::MenuSettings()
 								SetCursorPos({ vOriginalPos.x + H::Draw.Scale(7), vOriginalPos.y + H::Draw.Scale(5) });
 								IconImage(ICON_MD_GROUPS);
 							}
-							else if (F::Spectate.m_iTarget == player.m_iUserID)
+							else if (F::Spectate.m_iIntendedTarget == player.m_iUserID)
 							{
 								lOffset = H::Draw.Scale(29);
 								SetCursorPos({ vOriginalPos.x + H::Draw.Scale(7), vOriginalPos.y + H::Draw.Scale(5) });
@@ -1901,7 +1907,7 @@ void CMenu::MenuSettings()
 								if (FSelectable("History"))
 									I::SteamFriends->ActivateGameOverlayToWebPage(std::format("https://steamhistory.net/id/{}", CSteamID(player.m_uFriendsID, k_EUniversePublic, k_EAccountTypeIndividual).ConvertToUint64()).c_str());
 
-								if (FSelectable(F::Spectate.m_iTarget == player.m_iUserID ? "Unspectate" : "Spectate"))
+								if (FSelectable(F::Spectate.m_iIntendedTarget == player.m_iUserID ? "Unspectate" : "Spectate"))
 									F::Spectate.SetTarget(player.m_iUserID);
 
 								if (!player.m_bLocal && FSelectable("Votekick"))

@@ -1839,7 +1839,7 @@ namespace ImGui
 			if (iParent == DEFAULT_BIND || var.Map.contains(iParent))
 				break;
 		}
-		return var.Map[iParent];
+		return var.Map[iParent][CURRENT_VALUE_INDEX];
 	}
 
 	template <class T>
@@ -1852,17 +1852,19 @@ namespace ImGui
 		{
 			if (CurrentBind == DEFAULT_BIND)
 			{
-				if (Vars::Menu::MenuShowsBinds.Value && var.Map[DEFAULT_BIND] != var.Value)
+				if (Vars::Menu::MenuShowsBinds.Value && var.Map[DEFAULT_BIND][CURRENT_VALUE_INDEX] != var.Value)
 				{
 					for (auto& [_iBind, tVal] : var.Map)
 					{
 						if (_iBind == DEFAULT_BIND)
 							continue;
 
-						if (tVal == var.Value)
+						auto& tVal2 = tVal[CURRENT_VALUE_INDEX];
+
+						if (tVal2 == var.Value)
 						{
 							Disabled = true;
-							return tVal;
+							return tVal2;
 						}
 					}
 				}
@@ -1870,7 +1872,7 @@ namespace ImGui
 			else
 				Transparent = CurrentBind != iBind && !(var.m_iFlags & (NOSAVE | NOBIND));
 		}
-		return var.Map[iBind];
+		return var.Map[iBind][CURRENT_VALUE_INDEX];
 	}
 
 	template <class T>
@@ -1882,13 +1884,13 @@ namespace ImGui
 			auto tVal = GetParentValue(var, iBind);
 
 			if (tVal != val)
-				var.Map[iBind] = val;
+				var.Map[iBind][CURRENT_VALUE_INDEX] = val;
 			else if (iBind != DEFAULT_BIND)
 			{
 				for (auto it = var.Map.begin(); it != var.Map.end();)
 				{
 					if (it->first == iBind)
-						it = var.Map.erase(it);
+						it = var.Map.erase(it); // wat todo figure out if cycle will fuck this up
 					else
 						++it;
 				}
@@ -1940,7 +1942,7 @@ namespace ImGui
 			else
 				tBind = { sBind };
 			if (var.Map.contains(iBind))
-				val = var.Map[iBind];
+				val = var.Map[iBind][CURRENT_VALUE_INDEX];
 		}
 		if (iModified != -2)
 		{
@@ -1990,7 +1992,7 @@ namespace ImGui
 
 		if (!Disabled && iBind != DEFAULT_BIND && iBind < F::Binds.vBinds.size())
 		{
-			var.Map[iBind] = val;
+			var.Map[iBind][CURRENT_VALUE_INDEX] = val;
 
 			// don't completely override to retain misc info
 			auto& _tBind = F::Binds.vBinds[iBind];
@@ -1999,6 +2001,7 @@ namespace ImGui
 			_tBind.Key = tBind.Key;
 			_tBind.Visible = tBind.Visible;
 			_tBind.Not = tBind.Not;
+			//_tBind.Index = tBind.Index;
 		}
 
 		DebugDummy({ 0, H::Draw.Scale(8) });
@@ -2057,6 +2060,64 @@ namespace ImGui
 		return bReturn;\
 	}
 
+	/*inline bool FToggle(const char* sLabel, ConfigVar<bool>& var, int iFlags = 0, bool* pHovered = nullptr)
+	{
+		auto val = FGet(var, true);
+		bool bHovered = false;
+		const bool bReturn = FToggle(sLabel, &val, iFlags, &bHovered);
+		FSet(var, val);
+		if (!(var.m_iFlags & (1 << 2)) && !Disabled && CurrentBind == -1)
+		{
+			static auto staticVal = val;
+			bool bNewPopup = bHovered && IsMouseReleased(ImGuiMouseButton_Right) && !IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
+			
+			if (bNewPopup)
+			{
+				OpenPopup(std::format("{}::{}", var.m_sName.c_str(), sLabel).c_str());
+				staticVal = val;
+			}
+			
+			PushStyleColor(ImGuiCol_PopupBg, F::Render.Foreground.Value);
+			SetNextWindowSize({ H::Draw.Scale(300), 0 });
+			bool bPopup = BeginPopup(std::format("{}::{}", var.m_sName.c_str(), sLabel).c_str());
+			PopStyleColor();
+			if (bPopup)
+			{
+				std::string sLower = StripDoubleHash(sLabel);
+				std::transform(sLower.begin(), sLower.end(), sLower.begin(), ::tolower);
+
+				switch (FNV1A::Hash32Const("FToggle"))
+				{
+				case FNV1A::Hash32Const("FToggle"):
+					iFlags &= ~(FToggle_Left | FToggle_Right);
+					break;
+				case FNV1A::Hash32Const("FSlider"):
+					iFlags &= ~(FSlider_Left | FSlider_Right);
+					break;
+				case FNV1A::Hash32Const("FDropdown"):
+				case FNV1A::Hash32Const("FSDropdown"):
+				case FNV1A::Hash32Const("FMDropdown"):
+					iFlags &= ~(FDropdown_Left | FDropdown_Right);
+					break;
+				case FNV1A::Hash32Const("FColorPicker"):
+					iFlags &= ~(FColorPicker_Middle | FColorPicker_SameLine | FColorPicker_Dropdown | FColorPicker_Tooltip);
+					iFlags |= FColorPicker_Left;
+				}
+
+				PushTransparent(false);
+				DrawBindInfo(var, staticVal, sLower, bNewPopup);
+				val = staticVal;
+				FToggle(std::format("{}## Bind", sLabel).c_str(), &val, iFlags);
+				staticVal = val;
+				PopDisabled();
+				PopTransparent();
+				EndPopup();
+			}
+		} 
+		if (pHovered) 
+			*pHovered = bHovered; 
+		return bReturn;
+	}*/
 	WRAPPER(FToggle, bool, VA_LIST(int iFlags = 0), VA_LIST(&val, iFlags))
 	WRAPPER(FSlider, IntRange_t, VA_LIST(int iMin, int iMax, int iStep = 1, const char* fmt = "%d", int iFlags = 0), VA_LIST(&val.Min, &val.Max, iMin, iMax, iStep, fmt, iFlags))
 	WRAPPER(FSlider, FloatRange_t, VA_LIST(float flMin, float flMax, float flStep = 1.f, const char* fmt = "%.0f", int iFlags = 0), VA_LIST(&val.Min, &val.Max, flMin, flMax, flStep, fmt, iFlags))

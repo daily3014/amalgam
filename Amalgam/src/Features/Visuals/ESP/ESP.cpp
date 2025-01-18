@@ -48,15 +48,28 @@ void CESP::StorePlayers(CTFPlayer* pLocal)
 
 			if (pPlayer->IsDormant())
 			{
-				if (!H::Entities.GetDormancy(iIndex) || !Vars::ESP::DormantAlpha.Value
+				if (!H::Dormancy.GetDormancy(iIndex) || !Vars::ESP::DormantAlpha.Value
 					|| Vars::ESP::DormantPriority.Value && !F::PlayerUtils.IsPrioritized(iIndex))
 					continue;
 			}
 
-			if (!(Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Prioritized && F::PlayerUtils.IsPrioritized(iIndex))
-				&& !(Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Friends && H::Entities.IsFriend(iIndex))
-				&& !(Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Party && H::Entities.InParty(iIndex))
-				&& pPlayer->m_iTeamNum() == pLocal->m_iTeamNum() ? !(Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Team) : !(Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Enemy))
+			// why do u have to code this like a retard
+			/*
+			if (!(Vars::ESP::Player.Value && Vars::ESP::PlayerEnum::Prioritized && F::PlayerUtils.IsPrioritized(iIndex))
+				&& !(Vars::ESP::Player.Value && Vars::ESP::PlayerEnum::Friends && H::Entities.IsFriend(iIndex))
+				&& !(Vars::ESP::Player.Value && Vars::ESP::PlayerEnum::Party && H::Entities.InParty(iIndex))
+				&& pPlayer->m_iTeamNum() == pLocal->m_iTeamNum() ? !(Vars::ESP::Player.Value && Vars::ESP::PlayerEnum::Team) : !(Vars::ESP::Player.Value && Vars::ESP::PlayerEnum::Enemy))
+				continue;
+			*/
+			if (!Vars::ESP::Player.Value)
+				continue;
+
+			bool bUsePriority = (Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Prioritized) && F::PlayerUtils.IsPrioritized(iIndex);
+			bool bUseFriends = (Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Friends) && H::Entities.IsFriend(iIndex);
+			bool bUseTeam = (Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Team) && pPlayer->m_iTeamNum() == pLocal->m_iTeamNum();
+			bool bUseEnemy = (Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Enemy) && pPlayer->m_iTeamNum() != pLocal->m_iTeamNum();
+
+			if (!bUsePriority && !bUseFriends && !bUseTeam && !bUseEnemy)
 				continue;
 		}
 
@@ -1172,6 +1185,13 @@ bool CESP::GetDrawBounds(CBaseEntity* pEntity, float& x, float& y, float& w, flo
 		Math::AngleMatrix({ 0.f, I::EngineClient->GetViewAngles().y, 0.f }, transform);
 		Math::MatrixSetColumn(pEntity->GetAbsOrigin(), 3, transform);
 	}
+	else
+	{
+		int iIndex = pEntity->entindex();
+		if (H::Dormancy.GetDormancy(iIndex))
+			Math::MatrixSetColumn(H::Dormancy.GetDormancyPosition(iIndex), 3, transform);
+	}
+	
 
 	float flLeft, flRight, flTop, flBottom;
 	if (!SDK::IsOnScreen(pEntity, transform, &flLeft, &flRight, &flTop, &flBottom))

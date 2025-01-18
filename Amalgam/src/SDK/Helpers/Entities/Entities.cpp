@@ -5,6 +5,10 @@
 #include "../../../Features/Players/PlayerUtils.h"
 #include "../../../Features/Backtrack/Backtrack.h"
 #include "../../../Features/CheaterDetection/CheaterDetection.h"
+#include "./Dormancy.h"
+
+Vec3* CEntities::GetAvgVelocity(int iIndex) { return iIndex != I::EngineClient->GetLocalPlayer() ? &m_mAvgVelocities[iIndex] : nullptr; }
+void CEntities::SetAvgVelocity(int iIndex, Vec3 vAvgVelocity) { m_mAvgVelocities[iIndex] = vAvgVelocity; }
 
 void CEntities::Store()
 {
@@ -158,17 +162,21 @@ void CEntities::Store()
 			{
 				pEntity->m_lifeState() = pResource->IsAlive(n) ? LIFE_ALIVE : LIFE_DEAD;
 				pEntity->m_iHealth() = pResource->GetHealth(n);
-				if (m_mDormancy.contains(n))
+				if (H::Dormancy.m_mDormancy.contains(n))
 				{
-					auto& tDormancy = m_mDormancy[n];
-					if (I::EngineClient->Time() - tDormancy.LastUpdate < Vars::ESP::DormantTime.Value)
+					auto& tDormancy = H::Dormancy.m_mDormancy[n];
+					// this causes players going out of dormancy to teleport to their last position for one tick which can throw aimbot off
+					// solutions: ignore the player for that one tick / add a new function to get either dormancy pos or real pos and not set their origin
+					/*if (I::EngineClient->Time() - tDormancy.LastUpdate < Vars::ESP::DormantTime.Value)
 						pEntity->SetAbsOrigin(pEntity->m_vecOrigin() = tDormancy.Location);
 					else
-						m_mDormancy.erase(n);
+						m_mDormancy.erase(n);*/
+					if (I::EngineClient->Time() - tDormancy.LastUpdate > Vars::ESP::DormantTime.Value)
+						H::Dormancy.m_mDormancy.erase(n);
 				}
 			}
 			else if (pResource->IsAlive(n))
-				m_mDormancy[n] = { pEntity->m_vecOrigin(), I::EngineClient->Time() };
+				H::Dormancy.m_mDormancy[n] = { pEntity->m_vecOrigin(), I::EngineClient->Time() };
 		}
 
 		m_mGroups[EGroupType::PLAYERS_ALL].push_back(pEntity);
@@ -257,7 +265,7 @@ void CEntities::Clear(bool bShutdown)
 		m_mOldSimTimes.clear();
 		m_mDeltaTimes.clear();
 		m_mChokes.clear();
-		m_mDormancy.clear();
+		H::Dormancy.m_mDormancy.clear();
 		m_mBones.clear();
 		m_mEyeAngles.clear();
 		m_mPingAngles.clear();
@@ -272,7 +280,7 @@ void CEntities::ManualNetwork(const StartSoundParams_t& params)
 
 	auto pEntity = I::ClientEntityList->GetClientEntity(params.soundsource)->As<CBaseEntity>();
 	if (pEntity && pEntity->IsDormant() && pEntity->IsPlayer())
-		m_mDormancy[params.soundsource] = { params.origin, I::EngineClient->Time() };
+		H::Dormancy.m_mDormancy[params.soundsource] = { params.origin, I::EngineClient->Time() };
 }
 
 bool CEntities::IsHealth(CBaseEntity* pEntity)
@@ -370,7 +378,8 @@ float CEntities::GetSimTime(CBaseEntity* pEntity) { int iIndex = pEntity->entind
 float CEntities::GetOldSimTime(CBaseEntity* pEntity) { int iIndex = pEntity->entindex(); return m_mOldSimTimes.contains(iIndex) ? m_mOldSimTimes[iIndex] : pEntity->m_flOldSimulationTime(); }
 float CEntities::GetDeltaTime(int iIndex) { return m_mDeltaTimes.contains(iIndex) ? m_mDeltaTimes[iIndex] : TICK_INTERVAL; }
 int CEntities::GetChoke(int iIndex) { return m_mChokes.contains(iIndex) ? m_mChokes[iIndex] : 0; }
-bool CEntities::GetDormancy(int iIndex) { return m_mDormancy.contains(iIndex); }
+//bool CEntities::GetDormancy(int iIndex) { return m_mDormancy.contains(iIndex); }
+//bool CEntities::GetDormancyPosition(int iIndex, Vec3& vPosition) { bool has = m_mDormancy.contains(iIndex); if (has) { vPosition = m_mDormancy[iIndex].Location; } return has; }
 matrix3x4* CEntities::GetBones(int iIndex) { return m_mBones[iIndex].first ? m_mBones[iIndex].second : nullptr; }
 Vec3 CEntities::GetEyeAngles(int iIndex) { return m_mEyeAngles.contains(iIndex) ? m_mEyeAngles[iIndex] : Vec3(); }
 Vec3 CEntities::GetPingAngles(int iIndex) { return m_mPingAngles.contains(iIndex) ? m_mPingAngles[iIndex] : Vec3(); }

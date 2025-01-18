@@ -8,6 +8,7 @@
 #include "../../../Utils/NetVars/NetVars.h"
 #include "../../../Utils/Signatures/Signatures.h"
 #include "../../../Utils/Memory/Memory.h"
+#include "../../Helpers/Entities/Dormancy.h"
 
 MAKE_SIGNATURE(CBaseEntity_SetAbsOrigin, "client.dll", "48 89 5C 24 ? 57 48 83 EC ? 48 8B FA 48 8B D9 E8 ? ? ? ? F3 0F 10 83", 0x0);
 MAKE_SIGNATURE(CBaseEntity_SetAbsAngles, "client.dll", "48 89 5C 24 ? 57 48 81 EC ? ? ? ? 48 8B FA 48 8B D9 E8 ? ? ? ? F3 0F 10 83", 0x0);

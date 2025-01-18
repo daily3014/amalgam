@@ -319,14 +319,18 @@ void CMaterials::RemoveMaterial(const char* sName)
 
 		auto removeFromVar = [&](ConfigVar<std::vector<std::pair<std::string, Color_t>>>& var)
 			{
-				for (auto& [_, val] : var.Map)
+
+				for (auto& [_, vals] : var.Map)
 				{
-					for (auto it = val.begin(); it != val.end();)
+					for (auto& [_, val] : vals)
 					{
-						if (FNV1A::Hash32(it->first.c_str()) == uHash)
-							it = val.erase(it);
-						else
-							++it;
+						for (auto it = val.begin(); it != val.end();)
+						{
+							if (FNV1A::Hash32(it->first.c_str()) == uHash)
+								it = val.erase(it);
+							else
+								++it; 
+						}
 					}
 				}
 			};

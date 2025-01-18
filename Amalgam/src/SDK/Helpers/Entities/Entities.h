@@ -12,11 +12,11 @@ enum struct EGroupType
 	MISC_LOCAL_STICKIES, MISC_LOCAL_FLARES, MISC_DOTS
 };
 
-struct DormantData
-{
-	Vec3 Location;
-	float LastUpdate = 0.f;
-};
+//struct DormantData
+//{
+//	Vec3 Location;
+//	float LastUpdate = 0.f;
+//};
 
 class CEntities
 {
@@ -31,7 +31,8 @@ class CEntities
 	std::unordered_map<int, std::pair<bool, matrix3x4[MAXSTUDIOBONES]>> m_mBones;
 	std::unordered_map<int, Vec3> m_mEyeAngles, m_mPingAngles;
 	std::unordered_map<int, bool> m_mLagCompensation;
-	std::unordered_map<int, DormantData> m_mDormancy;
+	std::unordered_map<int, Vec3> m_mAvgVelocities;
+	//std::unordered_map<int, DormantData> m_mDormancy;
 
 	std::unordered_map<int, bool> m_mIFriends;
 	std::unordered_map<uint32_t, bool> m_mUFriends;
@@ -67,7 +68,11 @@ public:
 	Vec3 GetPingAngles(int iIndex);
 	bool GetLagCompensation(int iIndex);
 	void SetLagCompensation(int iIndex, bool bLagComp);
-	bool GetDormancy(int iIndex);
+	Vec3* GetAvgVelocity(int iIndex);
+	void SetAvgVelocity(int iIndex, Vec3 vAvgVelocity);
+	//bool GetDormancy(int iIndex);
+
+	//bool GetDormancyPosition(int iIndex, Vec3& vPosition);
 
 	bool IsFriend(int iIndex);
 	bool IsFriend(uint32_t friendsID);

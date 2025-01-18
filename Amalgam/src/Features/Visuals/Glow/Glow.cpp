@@ -23,7 +23,8 @@ static inline bool GetPlayerGlow(CBaseEntity* pEntity, CTFPlayer* pLocal, Glow_t
 		? Glow_t(Vars::Glow::Friendly::Stencil.Value, Vars::Glow::Friendly::Blur.Value)
 		: Glow_t(Vars::Glow::Enemy::Stencil.Value, Vars::Glow::Enemy::Blur.Value);
 	*pColor = H::Color.GetEntityDrawColor(pLocal, pEntity, Vars::Colors::Relative.Value);
-	return (bTeam ? (bFriendly && !pLocal->InCond(TF_COND_TEAM_GLOWS)) : bEnemy) && pEntity != pLocal; // ignore localplayer in the friendly category
+
+	return (bTeam ? bFriendly : bEnemy) && pEntity != pLocal; // ignore localplayer in the friendly category
 }
 
 bool CGlow::GetGlow(CTFPlayer* pLocal, CBaseEntity* pEntity, Glow_t* pGlow, Color_t* pColor)

@@ -7,6 +7,7 @@
 #define VA_LIST(...) __VA_ARGS__
 
 #define DEFAULT_BIND -1
+#define CURRENT_VALUE_INDEX -1
 
 // forward declartion of ConfigVar
 template <class T>
@@ -36,7 +37,7 @@ class ConfigVar : public CVarBase
 public:
 	T Default;
 	T Value;
-	std::unordered_map<int, T> Map;
+	std::unordered_map<int, std::unordered_map<int, T>> Map;
 	ConfigVar(T value, std::string name, int iFlags = 0);
 };
 
@@ -47,7 +48,7 @@ inline ConfigVar<T>::ConfigVar(T value, std::string name, int iFlags)
 {
 	Default = value;
 	Value = value;
-	Map[DEFAULT_BIND] = value;
+	Map[DEFAULT_BIND][CURRENT_VALUE_INDEX] = value;
 	m_iType = typeid(T).hash_code();
 	m_sName = name;
 	g_Vars.push_back(this);
@@ -160,6 +161,7 @@ namespace Vars
 			CVar(AutoRelease, 0.f)
 
 			CVar(AutoDetPrioritizePlayers, false)
+			CVar(AutoDetTargetDormant, false)
 			CVar(AutoDetLookAheadTime, 1.5f)
 			CVar(AutoDetSafeMode, false)
 			CVar(AutoDetPredictRadius, false)
@@ -173,15 +175,19 @@ namespace Vars
 			CVar(GroundHighMinimumDistance, 2500.f, DEBUGVAR)
 			CVar(GroundMaxChanges, 0, DEBUGVAR)
 			CVar(GroundMaxChangeTime, 0, DEBUGVAR)
+			CVar(GroundNewWeight, 100.f, DEBUGVAR)
+			CVar(GroundOldWeight, 0.f, DEBUGVAR)
 
 			CVar(AirSamples, 66, DEBUGVAR)
 			CVar(AirStraightFuzzyValue, 0.f, DEBUGVAR)
-			CVar(AirLowMinimumSamples, 3, DEBUGVAR)
-			CVar(AirHighMinimumSamples, 3, DEBUGVAR)
+			CVar(AirLowMinimumSamples, 8, DEBUGVAR)
+			CVar(AirHighMinimumSamples, 8, DEBUGVAR)
 			CVar(AirLowMinimumDistance, 100000.f, DEBUGVAR)
 			CVar(AirHighMinimumDistance, 100000.f, DEBUGVAR)
 			CVar(AirMaxChanges, 1, DEBUGVAR)
 			CVar(AirMaxChangeTime, 10, DEBUGVAR)
+			CVar(AirNewWeight, 100.f, DEBUGVAR)
+			CVar(AirOldWeight, 0.f, DEBUGVAR)
 
 			CVar(VelocityAverageCount, 5, DEBUGVAR)
 			CVar(VerticalShift, 5.f, DEBUGVAR)

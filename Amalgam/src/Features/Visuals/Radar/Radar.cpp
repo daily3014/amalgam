@@ -1,6 +1,7 @@
 #include "Radar.h"
 
 #include "../../Players/PlayerUtils.h"
+#include "../../../SDK/Helpers/Entities/Dormancy.h"
 
 bool CRadar::GetDrawPosition(CTFPlayer* pLocal, CBaseEntity* pEntity, int& x, int& y, int& z)
 {
@@ -283,7 +284,7 @@ void CRadar::DrawPoints(CTFPlayer* pLocal)
 		for (auto pEntity : H::Entities.GetGroup(EGroupType::PLAYERS_ALL))
 		{
 			auto pPlayer = pEntity->As<CTFPlayer>();
-			if (pPlayer->IsDormant() && !H::Entities.GetDormancy(pPlayer->entindex()) || !pPlayer->IsAlive() || pPlayer->IsAGhost())
+			if (pPlayer->IsDormant() && !H::Dormancy.GetDormancy(pPlayer->entindex()) || !pPlayer->IsAlive() || pPlayer->IsAGhost())
 				continue;
 
 			const int nIndex = pPlayer->entindex();

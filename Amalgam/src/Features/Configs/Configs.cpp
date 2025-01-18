@@ -262,14 +262,20 @@ CConfigs::CConfigs()
 #define SaveCond(type, tree)\
 {\
 	boost::property_tree::ptree mapTree;\
-	for (auto& [iBind, tValue] : var->As<type>()->Map)\
-		SaveJson(mapTree, std::to_string(iBind), tValue);\
+	for (auto& [iBind, tValues] : var->As<type>()->Map)\
+	{\
+		boost::property_tree::ptree bindTree;\
+		for (auto& [iIndex, tValue] : tValues)\
+			SaveJson(bindTree, std::to_string(iIndex), tValue);\
+		mapTree.put_child(std::to_string(iBind), bindTree);\
+	}\
 	tree.put_child(var->m_sName.c_str(), mapTree);\
 }
 #define SaveMain(type, tree) if (IsType(type)) SaveCond(type, tree)
+// todo: detect the new structure for binds else shit in hand
 #define LoadCond(type, tree)\
 {\
-	var->As<type>()->Map = { { DEFAULT_BIND, var->As<type>()->Default } };\
+	var->As<type>()->Map = { { DEFAULT_BIND, { { CURRENT_VALUE_INDEX, var->As<type>()->Default } } } }; \
 	if (const auto mapTree = tree.get_child_optional(var->m_sName.c_str()))\
 	{\
 		for (auto& it : *mapTree)\
@@ -279,7 +285,20 @@ CConfigs::CConfigs()
 				int iBind = std::stoi(it.first);\
 				if ((F::Binds.vBinds.size() <= iBind || var->As<type>()->m_iFlags & NOBIND) && iBind != DEFAULT_BIND)\
 					continue;\
-				LoadJson(*mapTree, it.first, var->As<type>()->Map[iBind]);\
+				if (!bNoMultipleValues)\
+				{\
+					if (const auto bindTree = (*mapTree).get_child_optional(it.first))\
+					{\
+						for (auto& it : *bindTree)\
+						{\
+							int iIndex = std::stoi(it.first); \
+							var->As<type>()->Map[iBind][iIndex] = var->As<type>()->Default; \
+							LoadJson(*bindTree, it.first, var->As<type>()->Map[iBind][iIndex]); \
+						}\
+					}\
+				}\
+				else\
+					LoadJson(*mapTree, it.first, var->As<type>()->Map[iBind][CURRENT_VALUE_INDEX]);\
 			}\
 			else\
 			{\
@@ -300,7 +319,7 @@ CConfigs::CConfigs()
 				}\
 				if (iBind == -2 || (F::Binds.vBinds.size() <= iBind || var->As<type>()->m_iFlags & NOBIND) && iBind != DEFAULT_BIND)\
 					continue;\
-				LoadJson(*mapTree, it.first, var->As<type>()->Map[iBind]);\
+				LoadJson(*mapTree, it.first, var->As<type>()->Map[iBind][CURRENT_VALUE_INDEX]);\
 			}\
 		}\
 	}\
@@ -327,6 +346,7 @@ bool CConfigs::SaveConfig(const std::string& configName, bool bNotify)
 			bindTree2.put("Active", tBind.Active);
 			bindTree2.put("Visible", tBind.Visible);
 			bindTree2.put("Parent", tBind.Parent);
+			bindTree2.put("Index", tBind.Index); // ill just calculate the size l0l
 
 			bindTree.push_back(std::make_pair("", bindTree2));
 		}
@@ -385,6 +405,7 @@ bool CConfigs::LoadConfig(const std::string& configName, bool bNotify)
 		read_json(sConfigPath + "\\" + configName + sConfigExtension, readTree);
 		
 		bool bLegacy = false;
+		bool bNoMultipleValues = false;
 		if (const auto condTree = readTree.get_child_optional("Binds"))
 		{
 			F::Binds.vBinds.clear();
@@ -400,6 +421,12 @@ bool CConfigs::LoadConfig(const std::string& configName, bool bNotify)
 				if (auto getValue = it.second.get_optional<bool>("Active")) { tBind.Active = *getValue; }
 				if (auto getValue = it.second.get_optional<bool>("Visible")) { tBind.Visible = *getValue; }
 				if (auto getValue = it.second.get_optional<int>("Parent")) { tBind.Parent = *getValue; }
+
+				if (auto getValue = it.second.get_optional<int>("Index"))
+					tBind.Index = *getValue;
+				else
+					bNoMultipleValues = true;
+
 
 				F::Binds.vBinds.push_back(tBind);
 			}
@@ -461,7 +488,7 @@ bool CConfigs::LoadConfig(const std::string& configName, bool bNotify)
 			}
 		}
 
-		H::Fonts.Reload(Vars::Menu::Scale.Map[DEFAULT_BIND]);
+		H::Fonts.Reload(Vars::Menu::Scale.Map[DEFAULT_BIND][CURRENT_VALUE_INDEX]);
 
 		sCurrentConfig = configName; sCurrentVisuals = "";
 		if (bNotify)
@@ -476,9 +503,9 @@ bool CConfigs::LoadConfig(const std::string& configName, bool bNotify)
 	return true;
 }
 
-#define SaveRegular(type, tree) SaveJson(tree, var->m_sName.c_str(), var->As<type>()->Map[DEFAULT_BIND])
+#define SaveRegular(type, tree) SaveJson(tree, var->m_sName.c_str(), var->As<type>()->Map[DEFAULT_BIND][CURRENT_VALUE_INDEX])
 #define SaveMisc(type, tree) if (IsType(type)) SaveRegular(type, tree);
-#define LoadRegular(type, tree) LoadJson(tree, var->m_sName.c_str(), var->As<type>()->Map[DEFAULT_BIND])
+#define LoadRegular(type, tree) LoadJson(tree, var->m_sName.c_str(), var->As<type>()->Map[DEFAULT_BIND][CURRENT_VALUE_INDEX])
 #define LoadMisc(type, tree) if (IsType(type)) LoadRegular(type, tree);
 
 bool CConfigs::SaveVisual(const std::string& configName, bool bNotify)
@@ -562,7 +589,7 @@ bool CConfigs::LoadVisual(const std::string& configName, bool bNotify)
 	return true;
 }
 
-#define ResetType(type) var->As<type>()->Map = { { DEFAULT_BIND, var->As<type>()->Default } };
+#define ResetType(type) var->As<type>()->Map =  { { DEFAULT_BIND, { { CURRENT_VALUE_INDEX, var->As<type>()->Default } } } };
 #define ResetT(type) if (IsType(type)) ResetType(type)
 
 void CConfigs::RemoveConfig(const std::string& configName)

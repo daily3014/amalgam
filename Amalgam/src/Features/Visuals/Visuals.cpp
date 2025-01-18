@@ -160,8 +160,7 @@ void CVisuals::ProjectileTrace(CTFPlayer* pPlayer, CTFWeaponBase* pWeapon, const
 {
 	if (bQuick)
 		F::CameraWindow.m_bShouldDraw = false;
-	if ((bQuick ? !Vars::Visuals::Simulation::TrajectoryPath.Value && !Vars::Visuals::Simulation::ProjectileCamera.Value : !Vars::Visuals::Simulation::ShotPath.Value)
-		|| !pPlayer || !pWeapon || pWeapon->GetWeaponID() == TF_WEAPON_FLAMETHROWER)
+	if (bQuick ? !Vars::Visuals::Simulation::TrajectoryPath.Value && !Vars::Visuals::Simulation::ProjectileCamera.Value : !Vars::Visuals::Simulation::ShotPath.Value)
 		return;
 
 	Vec3 vAngles = bQuick ? I::EngineClient->GetViewAngles() : G::CurrentUserCmd->viewangles;
@@ -173,7 +172,7 @@ void CVisuals::ProjectileTrace(CTFPlayer* pPlayer, CTFWeaponBase* pWeapon, const
 			return;
 
 		pWeapon = pPlayer->m_hActiveWeapon().Get()->As<CTFWeaponBase>();
-		if (!pWeapon)
+		if (!pWeapon || pWeapon->GetWeaponID() == TF_WEAPON_FLAMETHROWER)
 			return;
 
 		if (I::Input->CAM_IsThirdPerson())
@@ -181,6 +180,8 @@ void CVisuals::ProjectileTrace(CTFPlayer* pPlayer, CTFWeaponBase* pWeapon, const
 
 		pPlayer->m_vecViewOffset() = pPlayer->GetViewOffset();
 	}
+	else if (!pPlayer || !pWeapon || pWeapon->GetWeaponID() == TF_WEAPON_FLAMETHROWER)
+		return;
 
 	ProjectileInfo projInfo = {};
 	if (!F::ProjSim.GetInfo(pPlayer, pWeapon, vAngles, projInfo, iFlags, (bQuick && Vars::Aimbot::Projectile::AutoRelease.Value) ? Vars::Aimbot::Projectile::AutoRelease.Value / 100 : -1.f)
@@ -333,13 +334,11 @@ static void SimulateRocket(CTFPlayer* pLocal, CBaseEntity* pProjectile, float fl
 
 	if (flFraction == 1.f)
 	{
-		// poopy way of tracing against our character cuz it just ignores it lol good enough tho
 		Vec3 vClosestPoint = {}; reinterpret_cast<CCollisionProperty*>(pLocal->GetCollideable())->CalcNearestPoint(vEndPos, &vClosestPoint);
 
 		Vec3 vMins = pLocal->m_vecMins();
 		Vec3 vMaxs = pLocal->m_vecMaxs();
 
-		// add two hu for leniency
 		Vec3 vScaledMins = pLocal->GetAbsOrigin() + Vec3{ (vMins.x / 2) + 2.f, (vMins.y / 2) + 2.f, vMins.z };
 		Vec3 vScaledMaxs = pLocal->GetAbsOrigin() + Vec3{ (vMaxs.x / 2) + 2.f, (vMaxs.y / 2) + 2.f, vMaxs.z };
 
@@ -479,6 +478,9 @@ void CVisuals::SplashRadius(CTFPlayer* pLocal, bool inPostDraw)
 		}
 		if (pWeapon)
 		{
+			if (pWeapon->m_iItemDefinitionIndex() == Soldier_m_RocketJumper || pWeapon->m_iItemDefinitionIndex() == Demoman_s_StickyJumper)
+				return;
+
 			flRadius = SDK::AttribHookValue(flRadius, "mult_explosion_radius", pWeapon);
 			switch (pWeapon->GetWeaponID())
 			{
@@ -490,10 +492,9 @@ void CVisuals::SplashRadius(CTFPlayer* pLocal, bool inPostDraw)
 			}
 		}
 
-
 		if (!inPostDraw)
 		{
-			if (!pLocal->IsAlive() || pOwner == pLocal || pOwner->m_iTeamNum() == pLocal->m_iTeamNum() || pEntity->GetClassID() != ETFClassID::CTFProjectile_Rocket)
+			if (!pOwner || !pLocal || !pOwner->IsPlayer() || !pLocal->IsAlive() || pOwner == pLocal || pOwner->m_iTeamNum() == pLocal->m_iTeamNum() || pEntity->GetClassID() != ETFClassID::CTFProjectile_Rocket)
 				continue;
 
 			Vec3 vPlayerOrigin = pLocal->GetAbsOrigin() + pLocal->GetViewOffset() / 2;
@@ -513,17 +514,19 @@ void CVisuals::SplashRadius(CTFPlayer* pLocal, bool inPostDraw)
 
 			if (trace.m_pEnt)
 			{
+				CBaseEntity* pTracedOwner = trace.m_pEnt;
+
 				switch (trace.m_pEnt->GetClassID())
 				{
 				case ETFClassID::CTFPlayer:
-					static CBaseEntity* pTracedOwner = trace.m_pEnt;
-					if (pTracedOwner && pOwner && pTracedOwner->IsPlayer() && pTracedOwner->As<CTFPlayer>()->m_iTeamNum() != pOwner->As<CTFPlayer>()->m_iTeamNum())
+					// fuck you tf2
+					if (pTracedOwner->IsPlayer() && pOwner->IsPlayer() && pTracedOwner->m_iTeamNum() != pOwner->m_iTeamNum())
 						bSafeFromExplosion = false;
 					break;
 				case ETFClassID::CObjectSentrygun:
 				case ETFClassID::CObjectDispenser:
 				case ETFClassID::CObjectTeleporter:
-					static CBaseEntity* pBuilding = trace.m_pEnt;
+					CBaseEntity* pBuilding = pTracedOwner;
 					if (pBuilding && pBuilding->IsBuilding() && pBuilding->m_iTeamNum() == pLocal->m_iTeamNum())
 						bSafeFromExplosion = false;
 					break;
@@ -544,21 +547,21 @@ void CVisuals::SplashRadius(CTFPlayer* pLocal, bool inPostDraw)
 			Vec3 vRocketScreen; if (SDK::W2S(pEntity->GetAbsOrigin(), vRocketScreen))
 				H::Draw.FillRectOutline(vRocketScreen.x - 3, vRocketScreen.y - 3, 5, 5, cDrawColor, { 0, 0, 0, 180 });
 		}
-		else if (inPostDraw && pWeapon)
+		else if (inPostDraw)
 		{
 			Vec3 vEndPosition{ 0, 0, -1000.f };
 			float flLatency = 0;
 
-			switch (pWeapon->GetWeaponID())
+			switch (pEntity->GetClassID())
 			{
-			case TF_WEAPON_PIPEBOMBLAUNCHER:
+			case ETFClassID::CTFProjectile_Rocket:
+			case ETFClassID::CTFProjectile_EnergyBall:
+				SimulateRocket(pLocal, pEntity, 4096.f, vEndPosition);
+				break;
+			case ETFClassID::CTFGrenadePipebombProjectile:
 				flLatency = std::max(F::Backtrack.GetReal() - 0.05f, 0.f); // account for latency
 				flRadius = CalculateExplosionRadius(pEntity->As<CTFGrenadePipebombProjectile>()->m_bTouched(), pEntity->As<CTFGrenadePipebombProjectile>()->m_flCreationTime(), I::GlobalVars->curtime + flLatency, 1);
-				break;
-			case TF_WEAPON_ROCKETLAUNCHER:
-			case TF_WEAPON_ROCKETLAUNCHER_DIRECTHIT:
-			case TF_WEAPON_PARTICLE_CANNON:
-				SimulateRocket(pLocal, pEntity, 4096.f, vEndPosition);
+				vEndPosition = pEntity->GetAbsOrigin();
 				break;
 			default:
 				vEndPosition = pEntity->GetAbsOrigin();

@@ -28,10 +28,10 @@ void CTickshiftHandler::Recharge(CTFPlayer* pLocal)
 		flPassiveTime += 1.f / Vars::CL_Move::Doubletap::PassiveRecharge.Value;
 	}
 
-	if (m_iDeficit && m_iShiftedTicks < m_iMaxShift)
+	if (m_iDeficit)
 	{
 		bPassive = true;
-		m_iDeficit--;
+		m_iDeficit--, m_iShiftedTicks--;
 	}
 	else if (m_iDeficit)
 		m_iDeficit = 0;
@@ -78,7 +78,6 @@ void CTickshiftHandler::Doubletap(CTFPlayer* pLocal, CUserCmd* pCmd)
 	if (!m_bGoalReached)
 		return;
 
-	m_bDoubletap = false;
 	if (!Vars::CL_Move::Doubletap::Doubletap.Value
 		|| m_iWait || m_bWarp || m_bRecharge || m_bSpeedhack)
 		return;
@@ -119,19 +118,27 @@ Vec3 CTickshiftHandler::GetShootPos()
 
 void CTickshiftHandler::AntiWarp(CTFPlayer* pLocal, CUserCmd* pCmd)
 {
-	static Vec3 vVelocity = {};
+	//static Vec3 vVelocity = {};
 	static int iMaxTicks = 0;
 	if (m_bAntiWarp)
 	{
 		int iTicks = GetTicks();
 		iMaxTicks = std::max(iTicks + 1, iMaxTicks);
 
-		Vec3 vAngles; Math::VectorAngles(vVelocity, vAngles);
+		Vec3 vPlayerVelocity = pLocal->m_vecVelocity();
+		Vec3 vAngles; Math::VectorAngles(vPlayerVelocity, vAngles);
 		vAngles.y = pCmd->viewangles.y - vAngles.y;
 		Vec3 vForward; Math::AngleVectors(vAngles, &vForward);
-		vForward *= vVelocity.Length2D();
+		vForward *= vPlayerVelocity.Length2D();
 
-		if (iTicks > std::max(iMaxTicks - 8, 3))
+		float flScale = (pLocal->TeamFortress_CalculateMaxSpeed() / vPlayerVelocity.Length2D()) +
+			I::EngineClient->GetNetChannelInfo()->GetLatency(0);
+
+		pCmd->forwardmove = -vForward.x * flScale;
+		pCmd->sidemove = -vForward.y * flScale;
+
+
+		/*if (iTicks > std::max(iMaxTicks - 8, 3))
 			pCmd->forwardmove = -vForward.x, pCmd->sidemove = -vForward.y;
 		else if (iTicks > 3)
 		{
@@ -139,11 +146,11 @@ void CTickshiftHandler::AntiWarp(CTFPlayer* pLocal, CUserCmd* pCmd)
 			pCmd->buttons &= ~(IN_FORWARD | IN_BACK | IN_MOVELEFT | IN_MOVERIGHT);
 		}
 		else
-			pCmd->forwardmove = vForward.x, pCmd->sidemove = vForward.y;
+			pCmd->forwardmove = vForward.x, pCmd->sidemove = vForward.y;*/
 	}
 	else
 	{
-		vVelocity = pLocal->m_vecVelocity();
+		// vVelocity = pLocal->m_vecVelocity();
 		iMaxTicks = 0;
 	}
 
@@ -262,8 +269,8 @@ void CTickshiftHandler::CLMove(float accumulated_extra_samples, bool bFinalTick)
 	m_iShiftedGoal = std::clamp(m_iShiftedGoal, 0, m_iMaxShift);
 	if (m_iShiftedTicks > m_iShiftedGoal) // normal use/doubletap/teleport
 	{
-		m_iShiftStart = m_iShiftedTicks - 1 != m_iShiftedGoal ? m_iShiftedTicks : 0;
-		m_bShifting = m_iShiftStart;
+		m_bShifting = m_bShifted = m_iShiftedTicks - 1 != m_iShiftedGoal;
+		m_iShiftStart = m_iShiftedTicks;
 
 #ifndef TICKBASE_DEBUG
 		while (m_iShiftedTicks > m_iShiftedGoal)
@@ -291,8 +298,11 @@ void CTickshiftHandler::CLMove(float accumulated_extra_samples, bool bFinalTick)
 		m_bDoubletap = m_bWarp = false;
 	}
 	// else recharge, run once if we have any choked ticks
-	else if (I::ClientState->chokedcommands)
-		CLMoveFunc(accumulated_extra_samples, bFinalTick);
+	else // else recharge, run once if we have any choked ticks
+	{
+		if (I::ClientState->chokedcommands)
+			CLMoveFunc(accumulated_extra_samples, bFinalTick);
+	};
 }
 
 void CTickshiftHandler::CLMoveManage(CTFPlayer* pLocal)

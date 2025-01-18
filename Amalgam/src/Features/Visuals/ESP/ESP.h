@@ -1,5 +1,6 @@
 #pragma once
 #include "../../../SDK/SDK.h"
+#include "../../../SDK/Helpers/Entities/Dormancy.h"
 
 enum TextMode
 {

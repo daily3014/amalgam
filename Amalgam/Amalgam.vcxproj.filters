@@ -184,6 +184,7 @@
     <ClCompile Include="src\Hooks\CBasePlayer_InFirstPersonView.cpp" />
     <ClCompile Include="src\Hooks\CTFInput_ApplyMouse.cpp" />
     <ClCompile Include="src\Hooks\CSniperDot_GetRenderingPositions.cpp" />
+    <ClCompile Include="src\Hooks\CTFWeaponBase_IsAllowedToWithdrawFromCritBucket.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Utils\UtlVector\UtlVector.h" />
@@ -234,7 +235,6 @@
     <ClInclude Include="src\SDK\Definitions\Main\CTFPlayerResource.h" />
     <ClInclude Include="src\SDK\Definitions\Main\CTFWeaponBase.h" />
     <ClInclude Include="src\SDK\Definitions\Main\CUserCmd.h" />
-    <ClInclude Include="src\SDK\Definitions\Main\IClientEntity.h" />
     <ClInclude Include="src\SDK\Definitions\Main\IClientNetworkable.h" />
     <ClInclude Include="src\SDK\Definitions\Main\IClientRenderable.h" />
     <ClInclude Include="src\SDK\Definitions\Main\IClientThinkable.h" />
@@ -563,6 +563,8 @@
     <ClInclude Include="src\Features\Spectate\Spectate.h" />
     <ClInclude Include="src\SDK\Definitions\Interfaces\IBaseClientDLL.h" />
     <ClInclude Include="src\SDK\Definitions\Main\CSniperDot.h" />
+    <ClInclude Include="src\SDK\Definitions\Main\IClientEntity.h" />
+    <ClInclude Include="src\SDK\Helpers\Entities\Dormancy.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp.hint" />

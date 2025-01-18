@@ -1,4 +1,5 @@
 #include "PlayerArrows.h"
+#include "../../../SDK/Helpers/Entities/Dormancy.h"
 
 void CPlayerArrows::DrawArrowTo(const Vec3& vFromPos, const Vec3& vToPos, Color_t tColor)
 {
@@ -47,7 +48,7 @@ void CPlayerArrows::Run(CTFPlayer* pLocal)
 	for (auto pEntity : H::Entities.GetGroup(EGroupType::PLAYERS_ENEMIES))
 	{
 		auto pPlayer = pEntity->As<CTFPlayer>();
-		if (pPlayer->IsDormant() && !H::Entities.GetDormancy(pPlayer->entindex()) || !pPlayer->IsAlive() || pPlayer->IsAGhost() || pPlayer->IsCloaked())
+		if (pPlayer->IsDormant() && !H::Dormancy.GetDormancy(pPlayer->entindex()) || !pPlayer->IsAlive() || pPlayer->IsAGhost() || pPlayer->IsCloaked())
 			continue;
 
 		Color_t tColor = H::Color.GetEntityDrawColor(pLocal, pEntity, Vars::Colors::Relative.Value);

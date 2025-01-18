@@ -9,12 +9,9 @@
 #define TF_DAMAGE_CRIT_CHANCE_MELEE		0.15f
 #define TF_DAMAGE_CRIT_DURATION_RAPID	2.0f
 
-#define DEBUG_1
-
 /*
 	problems:
-		not counting crit damage as crit damage
-		calculations failing when you only did crit damage
+		flObservedCritChance in negative when more crit dmg than all damage
 */
 
 void CCritHack::Fill(const CUserCmd* pCmd, int n)
@@ -97,15 +94,20 @@ void CCritHack::Resync(CTFPlayer* pLocal)
 
 	if (pResource->GetDamage(pLocal->entindex()) <= 0)
 	{
-		m_iCritDamage = 0;
+	/*	m_iCritDamage = 0;
 		m_iAllDamage = 0;
 		m_iMeleeDamage = 0;
-		m_iBoostedDamage = 0;
+		m_iBoostedDamage = 0;*/
 		return;
 	}
 	
-	float ProperDamage = pResource->GetDamage(pLocal->entindex()) - m_iCritDamage - m_iBoostedDamage - m_iMeleeDamage;
-	m_iAllDamage = ProperDamage;
+	int iProperDamage = pResource->GetDamage(pLocal->entindex()) - m_iCritDamage - m_iBoostedDamage - m_iMeleeDamage;
+	if (m_iAllDamage < iProperDamage)
+	{
+		if (Vars::Debug::Logging.Value)
+			SDK::Output("Crithack", std::format("player resource reports {} damage but current m_iAllDamage is {}", iProperDamage, m_iAllDamage).c_str());
+		m_iAllDamage = iProperDamage;
+	}
 }
 
 void CCritHack::GetTotalCrits(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
@@ -220,9 +222,6 @@ void CCritHack::GetTotalCrits(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
 
 void CCritHack::CanFireCritical(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
 {
-#ifdef DEBUG_1
-
-#elif
 	m_bCritBanned = false;
 	m_iDamageTilUnban = 0;
 
@@ -242,13 +241,13 @@ void CCritHack::CanFireCritical(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
 		return;
 
 	const float flNormalizedDamage = m_iCritDamage / TF_DAMAGE_CRIT_MULTIPLIER;
-	const float flObservedCritChance = flNormalizedDamage / (flNormalizedDamage + m_iAllDamage - m_iCritDamage);
+	const float flObservedCritChance = flNormalizedDamage / (flNormalizedDamage + std::max(m_iAllDamage, m_iCritDamage) - m_iCritDamage);
 	float flCritChance = m_flCritChance + 0.1f;
 	if (m_bCritBanned = flObservedCritChance > flCritChance)
 		m_iDamageTilUnban = flNormalizedDamage / flCritChance + m_iCritDamage - flNormalizedDamage - m_iAllDamage;
-#endif
 }
 
+void CCritHack::IsAllowedToWithdrawFromCritBucketHandler(float flDamage) { m_iAllDamage = flDamage; }
 
 bool CCritHack::WeaponCanCrit(CTFWeaponBase* pWeapon, bool bWeaponOnly)
 {
@@ -464,13 +463,6 @@ void CCritHack::Event(IGameEvent* pEvent, uint32_t uHash, CTFPlayer* pLocal)
 		const auto iWeaponID = pEvent->GetInt("weaponid");
 
 		int iDamage = m_mHealthStorage.contains(iVictim) ? std::min(pEvent->GetInt("damageamount"), m_mHealthStorage[iVictim]) : pEvent->GetInt("damageamount");
-		
-		if (pVictim && pVictim->IsPlayer())
-		{
-			const int iMaxHealth = pVictim->GetMaxHealth();
-			iDamage = std::clamp(iDamage, 0, iMaxHealth != NULL ? iMaxHealth : 300);
-		}
-		
 
 		if (iVictim == iAttacker || iAttacker != pLocal->entindex() /*|| iWeaponID != pWeapon->GetWeaponID()*/ || pWeapon->GetSlot() == SLOT_MELEE) // weapon id stuff is dumb simplification
 			return;
@@ -478,7 +470,7 @@ void CCritHack::Event(IGameEvent* pEvent, uint32_t uHash, CTFPlayer* pLocal)
 		if (pWeapon->GetSlot() == SLOT_MELEE)
 			m_iMeleeDamage += iDamage;
 
-		m_iAllDamage += iDamage;
+		// m_iAllDamage += iDamage;
 		if (bCrit)
 		{
 			if (pLocal->IsCritBoosted())
@@ -602,14 +594,9 @@ void CCritHack::Draw(CTFPlayer* pLocal)
 
 		if (Vars::Debug::Info.Value)
 		{
-			const int m_nCritChecks = pWeapon->m_nCritChecks(), m_nCritSeedRequests = pWeapon->m_nCritSeedRequests();
-			float flMult = Math::RemapValClamped((float)m_nCritSeedRequests / (float)m_nCritChecks, 0.1f, 1.f, 1.f, 3.f);
-			float flDamage = pWeapon->GetDamage();
-			float flCost = (flDamage * TF_DAMAGE_CRIT_MULTIPLIER) * flMult;
-
 			H::Draw.String(fFont, x, y += nTall * 2, Vars::Menu::Theme::Active.Value, align, std::format("AllDamage: {}, CritDamage: {}", m_iAllDamage, m_iCritDamage).c_str());
 			H::Draw.String(fFont, x, y += nTall, Vars::Menu::Theme::Active.Value, align, std::format("Bucket: {}, Shots: {}, Crits: {}", pWeapon->m_flCritTokenBucket(), pWeapon->m_nCritChecks(), pWeapon->m_nCritSeedRequests()).c_str());
-			H::Draw.String(fFont, x, y += nTall, Vars::Menu::Theme::Active.Value, align, std::format("Damage: {}, Cost: {}, New Cost: {}", tStorage.m_flDamage, tStorage.m_flCost, flCost).c_str());
+			H::Draw.String(fFont, x, y += nTall, Vars::Menu::Theme::Active.Value, align, std::format("Damage: {}, Cost: {}", tStorage.m_flDamage, tStorage.m_flCost).c_str());
 			H::Draw.String(fFont, x, y += nTall, Vars::Menu::Theme::Active.Value, align, std::format("CritChance: {:.2f} ({:.2f})", m_flCritChance, m_flCritChance + 0.1f).c_str());
 			H::Draw.String(fFont, x, y += nTall, Vars::Menu::Theme::Active.Value, align, std::format("Force: {}, Skip: {}", tStorage.m_vCritCommands.size(), tStorage.m_vSkipCommands.size()).c_str());
 		}
