@@ -53,7 +53,6 @@ void CESP::StorePlayers(CTFPlayer* pLocal)
 					continue;
 			}
 
-			// why do u have to code this like a retard
 			/*
 			if (!(Vars::ESP::Player.Value && Vars::ESP::PlayerEnum::Prioritized && F::PlayerUtils.IsPrioritized(iIndex))
 				&& !(Vars::ESP::Player.Value && Vars::ESP::PlayerEnum::Friends && H::Entities.IsFriend(iIndex))

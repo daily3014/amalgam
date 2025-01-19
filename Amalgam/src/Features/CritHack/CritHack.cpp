@@ -465,10 +465,12 @@ void CCritHack::Event(IGameEvent* pEvent, uint32_t uHash, CTFPlayer* pLocal)
 		int iDamage = m_mHealthStorage.contains(iVictim) ? std::min(pEvent->GetInt("damageamount"), m_mHealthStorage[iVictim]) : pEvent->GetInt("damageamount");
 
 		if (iVictim == iAttacker || iAttacker != pLocal->entindex() /*|| iWeaponID != pWeapon->GetWeaponID()*/ || pWeapon->GetSlot() == SLOT_MELEE) // weapon id stuff is dumb simplification
+		{
+			if (pWeapon->GetSlot() == SLOT_MELEE)
+				m_iMeleeDamage += iDamage;
 			return;
+		}
 
-		if (pWeapon->GetSlot() == SLOT_MELEE)
-			m_iMeleeDamage += iDamage;
 
 		// m_iAllDamage += iDamage;
 		if (bCrit)
